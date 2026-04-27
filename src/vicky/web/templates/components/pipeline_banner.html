@@ -55,6 +55,7 @@
             e calibrando a busca em tempo real. É um trabalho minucioso —
             a profundidade da triagem é o que garante um Top final confiável e auditável.
             <span class="opacity-80">Pode deixar rodando que avisamos quando terminar.</span>
+            <span class="block mt-1.5 font-semibold">⚠️ Não feche esta aba enquanto o pipeline estiver rodando — fechar interrompe o processo.</span>
           </span>
         </div>
       </div>
@@ -252,6 +253,7 @@ function pipelineBanner(projectId, initialStatus, initialJobs) {
     _phraseIdx: 0,
     _phraseStep: null,
     _creepPct: 0,
+    _maxDisplayed: 0,  // Piso monotônico: barra nunca anda pra trás
 
     init() {
       this.refreshVisibility();
@@ -349,11 +351,16 @@ function pipelineBanner(projectId, initialStatus, initialJobs) {
     },
 
     get displayProgress() {
-      // Cap o creep em apenas 2% acima do real — antes era 5.5%, dando salto
-      // visual cosmético. Aqui apenas suaviza microbursts de tempo morto.
+      // MONOTÔNICO: a barra NUNCA anda pra trás. Quando uma nova etapa é criada
+      // (ex: rotate_terms aparecendo no meio do analyze), o denominador do peso
+      // cresce e overallProgress pode cair — visualmente isso é confuso. Aqui
+      // garantimos que o valor exibido só sobe.
       const ceiling = Math.min(99, this.overallProgress + 2);
-      const raw = Math.min(ceiling, Math.max(this.overallProgress, this._creepPct));
-      return Math.round(raw * 10) / 10;
+      const proposed = Math.min(ceiling, Math.max(this.overallProgress, this._creepPct));
+      if (proposed > this._maxDisplayed) {
+        this._maxDisplayed = proposed;
+      }
+      return Math.round(this._maxDisplayed * 10) / 10;
     },
 
     get currentStepKey() {
