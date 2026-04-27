@@ -366,25 +366,48 @@ def rotate_search_strings(client: OpenAI, model: str, *, topic: str,
 
     prev_summary = json.dumps(previous_strings, ensure_ascii=False, indent=2)
 
-    system = """Você é especialista em recuperação de informação científica.
-Sua tarefa: sugerir search strings ALTERNATIVAS para um tema cujas queries anteriores
-NÃO retornaram artigos relevantes (zero inclusões em 100+ artigos analisados).
+    system = """Você é especialista em recuperação de informação científica em PubMed, SciELO e Google Scholar.
 
-Use SINÔNIMOS, termos correlatos, traduções (en/pt/es), abreviações, e ângulos
-diferentes do mesmo problema. NÃO repita os termos das queries anteriores.
+Sua tarefa: sugerir search strings ALTERNATIVAS quando as anteriores não retornaram artigos.
 
-Responda em JSON com a chave "search_strings": {"pubmed": "...", "scielo": "...", "scholar": "..."}
+REGRAS CRÍTICAS (queries anteriores fracassaram POR ESTAREM HIPERESPECÍFICAS):
+1. NÃO use frases descritivas entre aspas (ex: "Pediatric Echography for Dermatological Conditions").
+   Essas frases NÃO EXISTEM literalmente na literatura — geram 0 resultados.
+2. Use TERMOS SIMPLES e CURTOS conectados por OR. Ex: "ultrasound OR ultrasonography OR sonography".
+3. Prefira palavras-chave canônicas: MeSH terms reais (ex: "Skin Diseases"[MeSH]),
+   DeCS, palavras únicas em vez de frases inventadas.
+4. Se a tentativa atual é alta (>5), AMPLIE drasticamente — use só 2-3 conceitos centrais,
+   não tente refinar mais. Quanto mais alta a tentativa, MAIS AMPLO deve ser.
+5. NÃO repita termos das anteriores. Use sinônimos, traduções (en/pt/es), abreviações.
+6. Para PubMed: combine MeSH com [tiab] (texto livre). NÃO encadeie ANDs em excesso.
+7. Para SciELO: use vocabulário em PT primário, EN como fallback.
+8. Para Scholar: queries CURTAS (5-10 palavras), sem operadores complexos.
+
+EXEMPLO BOM (PubMed para tema "ultrassom dermatologia pediátrica"):
+("Ultrasonography"[MeSH] OR ultrasound OR sonography) AND ("Skin Diseases"[MeSH] OR dermatology OR cutaneous) AND (child* OR pediatric OR paediatric)
+
+EXEMPLO RUIM (não fazer):
+"Pediatric Echography for Dermatological Conditions" AND "Cutaneous Ultrasound Imaging in Children"
+
+Responda em JSON: {"search_strings": {"pubmed": "...", "scielo": "...", "scholar": "..."}}
 """
+    aggressive_msg = ""
+    if attempt >= 5:
+        aggressive_msg = (
+            "\n\n⚠️ TENTATIVA #{} — queries anteriores claramente estão muito específicas. "
+            "Reduza drasticamente: use SÓ 2-3 conceitos centrais ligados por OR. "
+            "Esqueça refinar — AMPLIE.".format(attempt)
+        )
     user = f"""**Tema:** {topic}
 **Tentativa de rotação:** #{attempt}
 **Janela:** {sy}-{cy}
 
-**Search strings ANTERIORES (não funcionaram):**
+**Search strings ANTERIORES (retornaram 0 artigos — provavelmente HIPERESPECÍFICAS):**
 ```json
 {prev_summary}
 ```
-
-Gere search strings ALTERNATIVAS — sinônimos, traduções, ângulos diferentes.
+{aggressive_msg}
+Gere search strings MAIS AMPLAS — termos simples conectados por OR, sem frases descritivas inventadas.
 Para PubMed inclua o filtro de data `("{sy}"[Date - Publication] : "{cy}"[Date - Publication])`.
 Responda em JSON: {{"search_strings": {{"pubmed": "...", "scielo": "...", "scholar": "..."}}}}"""
 

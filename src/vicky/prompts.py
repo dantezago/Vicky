@@ -77,9 +77,15 @@ Seu trabalho é aplicar o **Protocolo Top 40** abaixo a cada artigo. Esse protoc
 
 Atenção: estudos que CLARAMENTE não fazem validação externa, ou são pequenos (<1000), ou são pré-2021, devem ser EXCLUÍDOS. Esse é o objetivo do filtro.
 
-## Quality Score (apenas quando decision == "include")
+## Quality Score (0-100, OBRIGATÓRIO em TODAS as decisões — include, exclude e uncertain)
 
-Pontue de 0 a 100 somando os pesos abaixo. Se decision != "include", retorne `quality_score: null`.
+Pontue SEMPRE — o score é usado para auditar a 2ª passada. Pontuar exclusões nos
+permite identificar quais merecem revisão (limítrofes 40-70) vs claras (<40).
+
+- Score < 40 → exclusão clara, dificilmente vira include
+- Score 40-70 → limítrofe, prioritário pra double-check
+- Score > 70 com decision="exclude" → inconsistência; revise sua decisão
+- Score >= 70 + decision="include" → forte candidato ao Top final
 
 | Atributo | Pontos máx |
 |---|---|
@@ -90,7 +96,8 @@ Pontue de 0 a 100 somando os pesos abaixo. Se decision != "include", retorne `qu
 | Comparação com baseline / controle / método tradicional / padrão de cuidado | 10 |
 | Publicado nos últimos 2 anos (5 pts se 3-5 anos) | 10 |
 
-Seja conservador: se o abstract não confirma, não dê os pontos.
+Seja conservador: se o abstract não confirma, não dê os pontos. NÃO retorne `null` —
+sempre dê um inteiro de 0 a 100, mesmo em exclusões e uncertains.
 
 ## Resumo
 
@@ -106,7 +113,7 @@ Responda APENAS com JSON válido neste formato exato:
   "summary_pt": "Resumo do artigo em 3-5 linhas em português.",
   "criteria_matched": ["1.1 Validação externa: ...", "1.3 N=12000", ...],
   "criteria_violated": ["2.4 N<100 pacientes" (apenas se exclude)],
-  "quality_score": <0-100 ou null>,
+  "quality_score": <0-100 inteiro, SEMPRE — não use null>,
   "score_breakdown": {{
     "validacao_externa": <0-25>,
     "n_amostral": <0-20>,
@@ -147,9 +154,13 @@ ATENÇÃO — diferenças vs revisão sistemática:
 - Estudos qualitativos bem conduzidos PODEM ser incluídos.
 - Editoriais/cartas/comentários só entram em casos excepcionais (revista de alto prestígio + utilidade real para contextualização).
 
-## Quality Score (sempre que decision == "include" ou "uncertain")
+## Quality Score (0-100, OBRIGATÓRIO em TODAS as decisões — incluindo exclude)
 
-Pontue de 0 a 100 somando os pesos abaixo (rubrica narrativa). Se decision == "exclude", retorne `quality_score: null`.
+Pontue SEMPRE — o score é usado para auditar a 2ª passada. Pontuar exclusões nos
+permite identificar quais merecem revisão (limítrofes 40-70) vs claras (<40).
+NÃO retorne null — sempre dê um inteiro de 0 a 100.
+
+Pontue de 0 a 100 somando os pesos abaixo (rubrica narrativa).
 
 | Atributo | Pontos máx |
 |---|---|
@@ -184,7 +195,7 @@ Responda APENAS com JSON válido neste formato exato:
   "summary_pt": "Resumo do artigo em 3-5 linhas em português + uso provável no artigo.",
   "criteria_matched": ["1.1 Alta relevância: ...", "1.2 Tipo de publicação: revisão sistemática 2024", ...],
   "criteria_violated": ["2.4 Antigo sem relevância clássica" (apenas se exclude)],
-  "quality_score": <0-100 ou null>,
+  "quality_score": <0-100 inteiro, SEMPRE — não use null>,
   "score_breakdown": {{
     "relevancia_tema": <0-25>,
     "atualidade": <0-15>,

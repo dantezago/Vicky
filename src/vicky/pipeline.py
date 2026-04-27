@@ -105,6 +105,8 @@ MAX_EXPANSION_ITERATIONS = 50     # Iterações de expansão mecânica
 # busca não estão acertando o universo certo — voltamos pro agente de
 # descoberta gerar ÂNGULOS COMPLETAMENTE NOVOS.
 RATIO_CHECK_INTERVAL = 100        # Confere proporção a cada N analisados
+RATIO_CHECK_MIN_BASE = 200        # Não dispara reroll antes de 200 analisados (base estatística)
+RATIO_CHECK_TOLERANCE = 0.5       # Só reroll se proporção < 50% da esperada (evita false positive)
 DISCOVERY_REROLL_LIMIT = 5        # Máximo de rerolls antes de aceitar esgotamento
 
 # ── Expansão de janela temporal ──
@@ -114,6 +116,13 @@ DISCOVERY_REROLL_LIMIT = 5        # Máximo de rerolls antes de aceitar esgotame
 # esgotamento, escala progressivamente: 2× → 4× → sem limite (100 anos).
 YEARS_WINDOW_EXPANSION_LADDER = [2, 4, 100]  # multiplicadores aplicados sobre a janela ORIGINAL
 YEARS_WINDOW_EXPANSION_LIMIT = len(YEARS_WINDOW_EXPANSION_LADDER)
+
+# ── Circuit breaker para operações inúteis ──
+# Quando rotate_terms/expand_search/reroll geram strings que retornam 0 artigos
+# em TODAS as fontes, queimar 20 rotações de uma só não ajuda. Após N operações
+# consecutivas com 0 artigos novos, pula direto pra alavanca seguinte (janela
+# temporal). Evita o loop infinito que vimos no projeto #68.
+USELESS_OPERATIONS_LIMIT = 3
 
 
 def _min_required_for(review_type: str | None) -> int:
@@ -205,17 +214,30 @@ async def run_full_pipeline(project_id: int) -> None:
         iteration = 0
         stagnation = 0
         prev_total = _project_counts(project_id)["total"]
-        rotations_done = 0
-        expansion_iter = 0
         consecutive_analyze_failures = 0
-        # Reroll de discovery: vigia proporção incluídos/analisados
-        discovery_rerolls_done = 0
-        last_ratio_check_at = 0
+        # ── Restauração de contadores via DB (sobrevive a restart do servidor) ──
+        # Antes esses contadores existiam só em memória — quando o uvicorn reiniciava
+        # e resume_interrupted_pipelines retomava, eles voltavam a 0 e o orçamento
+        # de rotações era queimado várias vezes (ex: #67 acumulou 221 rotações).
+        # Agora reconstruímos a partir dos jobs já gravados.
+        rotations_done, discovery_rerolls_done, expansion_iter, years_window_expansions_done = (
+            _restore_pipeline_counters(project_id)
+        )
+        if rotations_done or discovery_rerolls_done or expansion_iter or years_window_expansions_done:
+            print(f"  ↻ Contadores restaurados do DB: "
+                  f"rot={rotations_done}/{MAX_TERM_ROTATIONS}, "
+                  f"reroll={discovery_rerolls_done}/{DISCOVERY_REROLL_LIMIT}, "
+                  f"exp={expansion_iter}/{MAX_EXPANSION_ITERATIONS}, "
+                  f"yw={years_window_expansions_done}/{YEARS_WINDOW_EXPANSION_LIMIT}")
+        last_ratio_check_at = _project_counts(project_id)["analyzed"]  # não dispara reroll já analisados
         expected_inclusion_ratio = target / MAX_TOTAL_ARTICLES
         # Expansão de janela temporal: alavanca antes de aceitar esgotamento.
         # Guardamos a janela original do usuário pra calcular multiplicadores.
         original_years_window = p.years_window
-        years_window_expansions_done = 0
+        # Circuit breaker: conta operações de busca consecutivas que retornaram
+        # 0 artigos novos. Após USELESS_OPERATIONS_LIMIT, força salto pra próxima
+        # alavanca em vez de queimar todo orçamento de rotações.
+        useless_streak = 0
 
         while True:
             iteration += 1
@@ -238,10 +260,13 @@ async def run_full_pipeline(project_id: int) -> None:
             #    todos os rerolls.
             if stagnation >= STAGNATION_LIMIT:
                 # Alavanca 1: ainda temos rerolls de discovery? Tenta antes de aceitar.
+                # Mas: se circuit breaker acionou, pula direto pra alavanca 2.
                 if (discovery_rerolls_done < DISCOVERY_REROLL_LIMIT
+                        and useless_streak < USELESS_OPERATIONS_LIMIT
                         and stats["included"] < target
                         and stats["analyzed"] < MAX_TOTAL_ARTICLES):
                     discovery_rerolls_done += 1
+                    pre_reroll_total = _project_counts(project_id)["total"]
                     print(f"  ↻ Stagnation no limite — Reroll #{discovery_rerolls_done}"
                           f"/{DISCOVERY_REROLL_LIMIT} antes de aceitar esgotamento")
                     try:
@@ -250,10 +275,21 @@ async def run_full_pipeline(project_id: int) -> None:
                             1000 + discovery_rerolls_done * 100,
                         )
                         p = projects_module.get(project_id)
+                        post_reroll_total = _project_counts(project_id)["total"]
+                        if post_reroll_total <= pre_reroll_total:
+                            useless_streak += 1
+                            print(f"  ⚠ Reroll trouxe 0 artigos novos — useless_streak={useless_streak}")
+                            # Mantém stagnation alto pra reentrar nesse bloco
+                            # mas se atingiu limite, próxima iter pula pra years_window
+                            if useless_streak >= USELESS_OPERATIONS_LIMIT:
+                                discovery_rerolls_done = DISCOVERY_REROLL_LIMIT  # queima
+                                continue
+                        else:
+                            useless_streak = 0
                         stagnation = 0
                         rotations_done = 0
                         expansion_iter = 0
-                        prev_total = _project_counts(project_id)["total"]
+                        prev_total = post_reroll_total
                         continue
                     except LLMUnavailableError:
                         raise
@@ -277,8 +313,11 @@ async def run_full_pipeline(project_id: int) -> None:
                         stagnation = 0
                         rotations_done = 0
                         expansion_iter = 0
-                        # Reset rerolls também: nova janela merece chance completa
+                        # Reset rerolls + circuit breaker: nova janela é alavanca
+                        # diferente e merece chance completa, sem herdar useless streak
+                        # acumulado pelas rotações com a janela apertada.
                         discovery_rerolls_done = 0
+                        useless_streak = 0
                         last_ratio_check_at = stats["analyzed"]
                         prev_total = _project_counts(project_id)["total"]
                         continue
@@ -338,10 +377,15 @@ async def run_full_pipeline(project_id: int) -> None:
             # A cada RATIO_CHECK_INTERVAL artigos, confere se a proporção
             # real está alinhada com a esperada (target/MAX). Se não,
             # volta ao agente de descoberta pra gerar ângulos novos.
-            if stats["analyzed"] - last_ratio_check_at >= RATIO_CHECK_INTERVAL:
+            if (stats["analyzed"] >= RATIO_CHECK_MIN_BASE
+                    and stats["analyzed"] - last_ratio_check_at >= RATIO_CHECK_INTERVAL):
                 last_ratio_check_at = stats["analyzed"]
                 actual_ratio = stats["included"] / max(1, stats["analyzed"])
-                if (actual_ratio < expected_inclusion_ratio
+                # Tolerância: só reroll se proporção for SIGNIFICATIVAMENTE baixa.
+                # Evita false positives quando target/MAX é muito apertado (ex: 40/1300=3%
+                # — variação natural pode levar batches a ficar abaixo sem o tema estar errado).
+                threshold = expected_inclusion_ratio * RATIO_CHECK_TOLERANCE
+                if (actual_ratio < threshold
                         and stats["included"] < target
                         and stats["analyzed"] < MAX_TOTAL_ARTICLES
                         and discovery_rerolls_done < DISCOVERY_REROLL_LIMIT):
@@ -412,8 +456,22 @@ async def run_full_pipeline(project_id: int) -> None:
                 new_total = _project_counts(project_id)["total"]
                 if new_total <= prev_total:
                     stagnation += 1
+                    useless_streak += 1
+                    # Circuit breaker: rotate_terms/expand consecutivamente inúteis.
+                    # LLM gerou strings hiperespecíficas (ex: frases descritivas
+                    # entre aspas) que não existem na literatura. Não vale gastar
+                    # mais orçamento de rotação — pula pra próxima alavanca.
+                    if useless_streak >= USELESS_OPERATIONS_LIMIT:
+                        print(f"  ⊘ Circuit breaker: {useless_streak} operações de busca "
+                              f"consecutivas com 0 artigos novos — queimando rotações restantes "
+                              f"e forçando próxima alavanca")
+                        rotations_done = MAX_TERM_ROTATIONS
+                        expansion_iter = MAX_EXPANSION_ITERATIONS
+                        stagnation = STAGNATION_LIMIT
+                        useless_streak = 0
                 else:
                     stagnation = 0
+                    useless_streak = 0
                 prev_total = new_total
 
         # ── Invariant check pré-finalize (log apenas, não falha) ──
@@ -457,6 +515,48 @@ def _project_counts(project_id: int) -> dict:
             "SELECT COUNT(*) FROM analyses WHERE project_id=? AND decision='include'",
             (project_id,)).fetchone()[0]
         return {"total": total, "analyzed": analyzed, "included": included}
+
+
+def _restore_pipeline_counters(project_id: int) -> tuple[int, int, int, int]:
+    """Reconstrói contadores do pipeline a partir dos jobs já gravados.
+
+    Quando o servidor reinicia e resume_interrupted_pipelines retoma um pipeline,
+    contadores em memória (rotations_done, etc.) voltam a 0 — isso queimava o
+    orçamento de rotações múltiplas vezes (caso #67 acumulou 221 rotações).
+    Esta função lê os jobs persistidos e reconstrói os contadores.
+
+    Convenção dos nomes de jobs:
+      - rotate_terms_attempt{N}: N < 1000 = rotação normal; N >= 1000 = reroll discovery
+      - expand_iter{N}: expansão mecânica (N começa em 1)
+      - expand_years_window_lvl{N}: expansão de janela temporal
+
+    Retorna: (rotations_done, discovery_rerolls_done, expansion_iter, yw_expansions)
+    """
+    rotations_done = discovery_rerolls_done = 0
+    expansion_iter = years_window_expansions_done = 0
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT step FROM jobs WHERE project_id=? AND step LIKE 'rotate_terms_attempt%'",
+            (project_id,),
+        ).fetchall()
+        for r in rows:
+            try:
+                attempt = int(r["step"].replace("rotate_terms_attempt", ""))
+            except ValueError:
+                continue
+            if attempt >= 1000:
+                discovery_rerolls_done += 1
+            else:
+                rotations_done += 1
+        expansion_iter = conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE project_id=? AND step LIKE 'expand_iter%'",
+            (project_id,),
+        ).fetchone()[0]
+        years_window_expansions_done = conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE project_id=? AND step LIKE 'expand_years_window%'",
+            (project_id,),
+        ).fetchone()[0]
+    return rotations_done, discovery_rerolls_done, expansion_iter, years_window_expansions_done
 
 
 def _pending_count(project_id: int) -> int:
