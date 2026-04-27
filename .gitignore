@@ -3,11 +3,14 @@
 .env.*
 !.env.example
 
-# Dados locais
+# Dados locais — DB SQLite, backups, dumps
 *.db
 *.db-journal
+*.db.backup-*
 *.sqlite
+*.sql.dump
 data/
+/vicky/
 
 # Output
 relatorio.md

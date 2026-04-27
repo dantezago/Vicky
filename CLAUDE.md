@@ -11,12 +11,10 @@ triage com LLM e ranqueia o Top N final por Quality Score (0–100).
 ## Quick start
 
 ```bash
-cd /Users/dante/Vicky
-
 # 1. Setup (uma vez) — usa uv (Python 3.12)
 uv venv --python 3.12
 uv pip install -e .
-.venv/bin/playwright install chromium
+.venv/bin/playwright install chromium    # opcional: só pra Scholar
 
 # 2. Credenciais — edite ~/.config/vicky/.env
 mkdir -p ~/.config/vicky && chmod 700 ~/.config/vicky
@@ -26,18 +24,25 @@ OPENROUTER_MODEL=openai/gpt-4o-mini
 RAYYAN_EMAIL=admin@example.com
 RAYYAN_PASSWORD=anything
 RAYYAN_REVIEW_ID=0
+DATABASE_URL=postgresql://vicky:vicky_dev@localhost:5433/vicky
 EOF
 chmod 600 ~/.config/vicky/.env
 
-# 3. Criar admin inicial
+# 3. Subir Postgres local (Docker) e aplicar schema
+make pg-up        # sobe container e aguarda pg_isready
+make pg-init      # aplica src/vicky/schema_pg.sql (idempotente)
+
+# 4. Criar admin inicial
 .venv/bin/vicky create-user --email vickyangel@gmail.com --name Victoria --role admin --password vicky2026
 
-# 4. Subir o servidor
+# 5. Subir o servidor
 .venv/bin/vicky serve              # http://127.0.0.1:8000
 .venv/bin/vicky serve --port 8765  # outra porta
 ```
 
 **Smoke test rápido após mudanças:** `.venv/bin/vicky doctor` (testa config + chamada OpenRouter).
+
+> **Sem `DATABASE_URL` no `.env`?** O app cai pro fallback SQLite em `~/.local/share/vicky/vicky.db`. Útil pra dev offline, mas todos os ambientes oficiais rodam Postgres.
 
 ---
 
@@ -78,11 +83,17 @@ chmod 600 ~/.config/vicky/.env
 Top N final = MIN(target_articles, total_incluídos) ranqueado por quality_score
 ```
 
-**Concorrência multi-usuário:** SQLite em modo WAL + 1 task asyncio por projeto. Múltiplos usuários podem rodar pipelines em paralelo no mesmo processo uvicorn.
+**Concorrência multi-usuário:** Postgres (default) ou SQLite em modo WAL (fallback) + 1 task asyncio por projeto. Múltiplos usuários podem rodar pipelines em paralelo no mesmo processo uvicorn.
 
 ---
 
-## Schema do banco (`~/.local/share/vicky/vicky.db`)
+## Schema do banco
+
+Backend é escolhido em runtime por `DATABASE_URL`:
+- **Postgres** (default em prod/dev): schema vivo em [src/vicky/schema_pg.sql](src/vicky/schema_pg.sql), aplicado via `make pg-init`.
+- **SQLite** (fallback): `~/.local/share/vicky/vicky.db`, schema declarativo em [storage.py](src/vicky/storage.py) + migrations v1→v9 aplicadas no `connect()`.
+
+O adapter [src/vicky/db.py](src/vicky/db.py) traduz dialetos no momento do `execute` (`?` → `%s`, `datetime('now')`, `strftime('%s', X)`, `julianday(X)`, `unaccent(...)`) — código de negócio escreve SQL "estilo SQLite" e funciona nos dois.
 
 ```
 users (id, email, password_hash, name, role[admin|operacional|visualizador], status, created_at)
@@ -103,16 +114,125 @@ users (id, email, password_hash, name, role[admin|operacional|visualizador], sta
 
 **Convenção de isolamento:** TODA query precisa filtrar por `workspace_id` ou `project_id`. Nunca confie em foreign key sem WHERE explícito. A função `get_project_for_workspace()` em `app.py` é o único caminho seguro para carregar projeto na rota.
 
-**Migrações automáticas:** rodam ao primeiro `connect()`. Detectam versão do schema via `_table_has_column()` e aplicam só o que falta. Backup manual do DB sempre antes de mudanças destrutivas:
+**Migrações automáticas (SQLite):** rodam ao primeiro `connect()`. Detectam versão do schema via `_table_has_column()` e aplicam só o que falta. Backup manual antes de mudanças destrutivas:
 ```bash
 cp ~/.local/share/vicky/vicky.db{,.backup-$(date +%s)}
 ```
 
-Versões já aplicadas:
+**Postgres:** schema é estático em [schema_pg.sql](src/vicky/schema_pg.sql) — não tem migration runtime. Mudanças vão via novo arquivo de migration aplicado fora do app (psql ou ferramenta dedicada).
+
+Versões SQLite já aplicadas:
 - v1→v2: adicionou `workspace_id` (multitenancy)
 - v2→v3: adicionou `project_id` + composite PK + `source/external_id` (multi-source)
 - v3→v4: adicionou `target_articles` (meta de Top N)
 - v4→v5: adicionou `in_top_n` em `analyses` (marca quais incluídos sobrevivem ao corte por quality_score)
+- v5→v6: adicionou `credits` em `users`
+- v6→v7: adicionou `review_type` em `projects`
+- v7→v8: adicionou `cost_source`/`generation_id` em `llm_usage` (custo real OpenRouter)
+- v8→v9: adicionou `openrouter_api_key` em `workspaces`
+
+---
+
+## Postgres — setup, seed e workflow
+
+Backend default em runtime. Container roda via [docker-compose.yml](docker-compose.yml) na porta **5433** (não 5432, pra não colidir com Postgres do host se houver).
+
+### Conexão
+
+```
+host:    localhost
+port:    5433
+user:    vicky
+pass:    vicky_dev
+db:      vicky
+URL:     postgresql://vicky:vicky_dev@localhost:5433/vicky
+JDBC:    jdbc:postgresql://localhost:5433/vicky   (DataGrip/IntelliJ)
+```
+
+### Comandos `make`
+
+| Comando | O que faz |
+|---|---|
+| `make help` | Lista todos os targets |
+| `make pg-up` | Sobe container + espera `pg_isready` |
+| `make pg-down` | Para o container (preserva volume) |
+| `make pg-status` | Mostra estado/health |
+| `make pg-logs` | Tail dos logs |
+| `make psql` | Abre shell `psql` interativo |
+| `make pg-init` | Aplica `schema_pg.sql` (idempotente) |
+| `make seed` | ETL de `vicky/vicky.db` (SQLite) → Postgres |
+| `make seed SQLITE=caminho/x.db` | ETL de outro arquivo |
+| `make seed-truncate` | Como `seed`, mas TRUNCATE antes |
+| `make pg-drop` | TRUNCATE em todas as tabelas (preserva schema) |
+| `make pg-reset` | **Apaga volume** e sobe banco zerado (pede confirmação) |
+| `make pg-fresh` | `pg-reset` + `pg-init` + `seed` (workflow "do zero") |
+
+### Roteiro pra um dev novo (clone fresco)
+
+```bash
+# 1. venv + deps
+uv venv --python 3.12
+uv pip install -e .
+
+# 2. .env (precisa de OPENROUTER_API_KEY no mínimo)
+mkdir -p ~/.config/vicky && chmod 700 ~/.config/vicky
+cat > ~/.config/vicky/.env <<'EOF'
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENROUTER_MODEL=openai/gpt-4o-mini
+RAYYAN_EMAIL=admin@example.com
+RAYYAN_PASSWORD=anything
+RAYYAN_REVIEW_ID=0
+DATABASE_URL=postgresql://vicky:vicky_dev@localhost:5433/vicky
+EOF
+chmod 600 ~/.config/vicky/.env
+
+# 3. Postgres + schema
+make pg-up
+make pg-init
+
+# 4a. Sem dado de seed (banco zerado): cria admin manualmente
+.venv/bin/vicky create-user --email teste@example.com --name Teste --role admin --password senha1234
+
+# 4b. OU se receber um vicky.db por canal seguro fora do git (NÃO é commitado):
+make seed SQLITE=caminho/recebido.db
+
+# 5. Servidor
+.venv/bin/vicky serve --port 8765
+```
+
+> **`vicky/*.db` não vai no repo** — `.gitignore` cobre `*.db` e `*.db.backup-*`. Quem precisar do dado real recebe por canal seguro fora do git.
+
+### ETL SQLite → Postgres ([scripts/migrate_to_pg.py](scripts/migrate_to_pg.py))
+
+- Copia em ordem topológica respeitando FKs (users → workspaces → projects → articles → ...).
+- `SET session_replication_role = replica` desliga FKs durante o load (volta no final).
+- Reseta sequences (`BIGSERIAL`) pra `MAX(id)+1` depois.
+- Valida contagens em SQLite vs Postgres ao final.
+- `--truncate` torna idempotente.
+
+### Adapter de dialeto ([src/vicky/db.py](src/vicky/db.py))
+
+Tradução acontece só no backend Postgres. Código de negócio escreve "estilo SQLite":
+
+| Escreve | Vira no PG |
+|---|---|
+| `?` | `%s` (paramstyle pyformat) |
+| `datetime('now')` | `to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')` |
+| `strftime('%s', X)` | `EXTRACT(EPOCH FROM (X)::timestamp)::bigint` |
+| `julianday('now')` / `julianday(X)` | `(EXTRACT(EPOCH FROM ...)/86400.0)` |
+| `unaccent(...)` | `unaccent_ci(...)` (lowercase + sem diacríticos) |
+| `INSERT OR REPLACE` | **erro explícito** — use `ON CONFLICT (...) DO UPDATE` |
+| `cur.lastrowid` (PK `id`) | `conn.execute_returning_id(sql, params)` |
+
+Função `unaccent_ci` é registrada como SQL function em ambos os backends — busca tolerante (`mamografía` = `mamografia`) funciona em qualquer um.
+
+Pra detectar erros de unique violation portavelmente: `db.is_unique_violation(exc)` (cobre `sqlite3.IntegrityError` e `psycopg.errors.UniqueViolation`).
+
+### Conectar pelo DataGrip / IntelliJ
+
+1. **Data Sources → New → PostgreSQL**
+2. Host `localhost`, **Port `5433`**, User `vicky`, Password `vicky_dev`, Database `vicky`
+3. Test Connection (baixa driver na primeira vez) → OK
 
 ---
 
@@ -366,8 +486,9 @@ Pra economizar mais: `OPENROUTER_MODEL=google/gemini-2.0-flash-001` no `.env` (~
 | Google Scholar bloqueado por CAPTCHA | Aceitável | Use só PubMed+SciELO em produção |
 | Senha Rayyan plaintext no DB | Aceitável (single-user local) | Pra produção: cifrar com Fernet |
 | Sessão cookie sem CSRF token | Aceitável (SameSite=Lax) | Adequado pra uso interno |
-| SQLite OK até ~10 users simultâneos | Conhecido | Migrar pra Postgres se escalar |
 | Pipeline morre se uvicorn cair durante execução | Conhecido | Pra produção: Celery/RQ + worker separado |
+| Postgres sem connection pool — 1 socket por request | Conhecido | Adicionar `psycopg_pool.ConnectionPool` se aparecer latência |
+| Postgres não tem migration runtime — schema é estático | Aceitável | Mudanças vão via `schema_pg.sql` ou ferramenta dedicada |
 | bcrypt warning não-fatal sobre `__about__` | Cosmético | Incompatibilidade passlib + bcrypt 5.x. Pinei bcrypt<5 |
 | IDE pyright reclama de imports do venv | Falso-positivo | Imports funcionam em runtime; é só o IDE não vendo `.venv/` |
 
@@ -407,9 +528,10 @@ Pipelines novos (de projetos) rodam **automaticamente** quando você cria projet
 
 ## Arquivos de credenciais e backup
 
-- **Credenciais:** `~/.config/vicky/.env` (perm 600, fora do repo, NUNCA commitar)
-- **DB:** `~/.local/share/vicky/vicky.db` (modo WAL, backup com simples `cp`)
-- **Backups manuais:** `~/.local/share/vicky/vicky.db.backup-pre-multitenancy`, `vicky.db.backup-pre-discovery` (de migrações grandes)
+- **Credenciais:** `~/.config/vicky/.env` (perm 600, fora do repo, NUNCA commitar). Symlink opcional `Vicky/.env` → `~/.config/vicky/.env` pra abrir no IDE; coberto pelo `.gitignore`.
+- **DB Postgres:** volume Docker `vicky_pgdata`. Dump com `docker compose exec postgres pg_dump -U vicky vicky > dump.sql`.
+- **DB SQLite (fallback):** `~/.local/share/vicky/vicky.db` (modo WAL, backup com `cp`).
+- **Backups SQLite locais:** ficam em `vicky/` no root do repo (pasta gitignored). Servem só de seed pra `make seed`.
 
 ---
 

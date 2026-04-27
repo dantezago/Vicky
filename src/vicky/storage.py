@@ -1,15 +1,20 @@
-"""SQLite — multitenancy + multi-project. Cada projeto tem seus dados isolados."""
+"""Schema + CRUD multitenancy + multi-project.
+
+A conexão é criada via `vicky.db.connect()` (adapter SQLite/Postgres). Este
+módulo mantém o SCHEMA SQLite idempotente, as migrations v1→v9 (rodadas só no
+backend SQLite) e os helpers CRUD genéricos. Pra Postgres, o schema vive em
+`schema_pg.sql` — esse arquivo é aplicado uma única vez via `vicky.db.init_pg_schema()`.
+"""
 
 from __future__ import annotations
 
 import json
 import sqlite3
-from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Iterator
 
-from .config import DB_PATH
+from .db import connect  # re-exporta pra preservar `from .storage import connect`
+
+__all__ = ["connect", "SCHEMA", "run_migrations", "Article", "Analysis", "DoubleCheck"]
 
 # ─── Schema (idempotente) ──────────────────────────────────────────────────
 
@@ -497,38 +502,8 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-# ─── Connection helper ──────────────────────────────────────────────────────
-
-
-def _unaccent(text):
-    """Remove diacríticos (mamografía → mamografia) para busca tolerante."""
-    if text is None:
-        return None
-    import unicodedata
-    nfd = unicodedata.normalize("NFD", str(text))
-    return "".join(c for c in nfd if unicodedata.category(c) != "Mn").lower()
-
-
-@contextmanager
-def connect(db_path: Path = DB_PATH) -> Iterator[sqlite3.Connection]:
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path, timeout=10.0)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA foreign_keys = ON")
-    # Função SQL custom: unaccent(text) — usada nas buscas tolerantes
-    conn.create_function("unaccent", 1, _unaccent, deterministic=True)
-    try:
-        run_migrations(conn)
-    except Exception:
-        conn.rollback()
-        raise
-    conn.executescript(SCHEMA)
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
+# ─── Connection helper ─────────────────────────────────────────────────────
+# `connect()` veio importado do `vicky.db` no topo deste módulo.
 
 
 # ─── Dataclasses ────────────────────────────────────────────────────────────
@@ -593,15 +568,23 @@ def upsert_article(conn: sqlite3.Connection, *, workspace_id: int, project_id: i
     )
 
 
-def insert_analysis(conn: sqlite3.Connection, project_id: int,
+def insert_analysis(conn, project_id: int,
                     a: Analysis, raw_response: str) -> None:
     conn.execute(
         """
-        INSERT OR REPLACE INTO analyses
+        INSERT INTO analyses
         (project_id, source, external_id, decision, reason, summary_pt,
          criteria_matched, criteria_violated, quality_score, score_breakdown,
          model, raw_response)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (project_id, source, external_id) DO UPDATE SET
+            decision=excluded.decision, reason=excluded.reason,
+            summary_pt=excluded.summary_pt,
+            criteria_matched=excluded.criteria_matched,
+            criteria_violated=excluded.criteria_violated,
+            quality_score=excluded.quality_score,
+            score_breakdown=excluded.score_breakdown,
+            model=excluded.model, raw_response=excluded.raw_response
         """,
         (project_id, a.source, a.external_id, a.decision, a.reason, a.summary_pt,
          json.dumps(a.criteria_matched, ensure_ascii=False),
@@ -612,13 +595,17 @@ def insert_analysis(conn: sqlite3.Connection, project_id: int,
     )
 
 
-def insert_double_check(conn: sqlite3.Connection, project_id: int,
+def insert_double_check(conn, project_id: int,
                         dc: DoubleCheck, raw_response: str) -> None:
     conn.execute(
         """
-        INSERT OR REPLACE INTO double_checks
+        INSERT INTO double_checks
         (project_id, source, external_id, agrees, final_decision, explanation, model, raw_response)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (project_id, source, external_id) DO UPDATE SET
+            agrees=excluded.agrees, final_decision=excluded.final_decision,
+            explanation=excluded.explanation, model=excluded.model,
+            raw_response=excluded.raw_response
         """,
         (project_id, dc.source, dc.external_id, int(dc.agrees),
          dc.final_decision, dc.explanation, dc.model, raw_response),
@@ -754,13 +741,12 @@ def _row_to_article(r: sqlite3.Row) -> Article:
 # ─── Jobs (status do pipeline) ─────────────────────────────────────────────
 
 
-def create_job(conn: sqlite3.Connection, project_id: int, step: str) -> int:
-    cur = conn.execute(
+def create_job(conn, project_id: int, step: str) -> int:
+    return conn.execute_returning_id(
         """INSERT INTO jobs (project_id, step, status, started_at)
            VALUES (?, ?, 'running', datetime('now'))""",
         (project_id, step),
     )
-    return cur.lastrowid
 
 
 def update_job(conn: sqlite3.Connection, job_id: int, *,
@@ -802,7 +788,7 @@ def insert_llm_usage(
     generation_id: str | None = None,
     cost_source: str = "table",
 ) -> int:
-    cur = conn.execute(
+    return conn.execute_returning_id(
         """INSERT INTO llm_usage
            (workspace_id, project_id, user_id, pipeline_step, model,
             prompt_tokens, completion_tokens, total_tokens, cost_usd, duration_ms,
@@ -818,7 +804,6 @@ def insert_llm_usage(
          json.dumps(request_metadata, ensure_ascii=False) if request_metadata else None,
          generation_id or None, cost_source),
     )
-    return int(cur.lastrowid or 0)
 
 
 def update_llm_usage_real_cost(
