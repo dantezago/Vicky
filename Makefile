@@ -21,12 +21,18 @@ DB_PORT         ?= 5433
 DATABASE_URL    ?= postgresql://$(DB_USER):$(DB_PASS)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)
 SQLITE          ?= vicky/vicky.db
 
+VPS_USER        ?= synaptha
+VPS_HOST        ?= 72.61.128.48
+VPS_PATH        ?= ~/Vicky
+PROD_COMPOSE    ?= docker compose -f compose.prod.yml --env-file .env.prod
+
 export DATABASE_URL
 
 .DEFAULT_GOAL := help
 
 .PHONY: help pg-up pg-down pg-restart pg-logs pg-shell pg-status pg-wait \
-        pg-reset pg-init pg-drop seed seed-truncate pg-fresh psql
+        pg-reset pg-init pg-drop seed seed-truncate pg-fresh psql \
+        deploy prod-logs prod-status prod-restart
 
 ## help: Lista os comandos disponíveis
 help:
@@ -107,3 +113,27 @@ seed-truncate:
 ## pg-fresh: pg-reset + pg-init + seed (workflow completo "do zero")
 pg-fresh: pg-reset pg-init seed
 	@echo "✓ Postgres limpo, schema aplicado e dados carregados de $(SQLITE)."
+
+## deploy: git pull + rebuild + restart na VPS de produção
+deploy:
+	@echo "→ Conectando em $(VPS_USER)@$(VPS_HOST):$(VPS_PATH)..."
+	@ssh -t $(VPS_USER)@$(VPS_HOST) ' \
+		set -e; \
+		cd $(VPS_PATH); \
+		echo "→ git pull..."; git pull; \
+		echo "→ docker compose up -d --build..."; \
+		$(PROD_COMPOSE) up -d --build; \
+		echo "→ Status:"; $(PROD_COMPOSE) ps; \
+		echo "✓ Deploy concluído."'
+
+## prod-logs: Tail dos logs do vicky-web em produção (Ctrl+C pra sair)
+prod-logs:
+	@ssh -t $(VPS_USER)@$(VPS_HOST) 'cd $(VPS_PATH) && $(PROD_COMPOSE) logs -f --tail=50 vicky-web'
+
+## prod-status: Mostra status dos containers de produção
+prod-status:
+	@ssh -t $(VPS_USER)@$(VPS_HOST) 'cd $(VPS_PATH) && $(PROD_COMPOSE) ps'
+
+## prod-restart: Reinicia o vicky-web em produção (sem rebuild)
+prod-restart:
+	@ssh -t $(VPS_USER)@$(VPS_HOST) 'cd $(VPS_PATH) && $(PROD_COMPOSE) restart vicky-web'
