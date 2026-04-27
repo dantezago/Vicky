@@ -1,0 +1,48 @@
+services:
+  vicky-db:
+    image: postgres:16-alpine
+    container_name: vicky-db-prod
+    restart: unless-stopped
+    env_file: .env.prod
+    volumes:
+      - vicky_pgdata:/var/lib/postgresql/data
+    networks: [vicky-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  vicky-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: vicky-web-prod
+    restart: unless-stopped
+    env_file: .env.prod
+    volumes:
+      - ./.env.prod:/home/vicky/.config/vicky/.env:ro
+      - vicky_appdata:/home/vicky/.local/share/vicky
+    networks: [traefik-net, vicky-internal]
+    expose: ["8000"]
+    depends_on:
+      vicky-db:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik-net
+      - "traefik.http.routers.vicky-web.rule=Host(`vicky.synaptha.com`)"
+      - traefik.http.routers.vicky-web.entrypoints=https
+      - traefik.http.routers.vicky-web.tls=true
+      - traefik.http.routers.vicky-web.tls.certresolver=letsencrypt
+      - traefik.http.services.vicky-web.loadbalancer.server.port=8000
+
+networks:
+  vicky-internal:
+    driver: bridge
+  traefik-net:
+    external: true
+
+volumes:
+  vicky_pgdata:
+  vicky_appdata:
