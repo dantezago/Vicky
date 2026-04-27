@@ -1,0 +1,712 @@
+{% extends "app_layout.html" %}
+{% from "components/project_status.html" import status_badge, source_badge, job_status_icon %}
+{% from "components/status_badge.html" import score_pill %}
+{% from "components/link_button.html" import link_button %}
+{% from "components/pipeline_banner.html" import pipeline_banner %}
+{% block title %}{{ p.topic|truncate(50) }} · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5">Projeto #{{ p.id }} · criado em {{ p.created_at[:10] }}</div>{% endblock %}
+{% block page_title %}{{ p.topic }}{% endblock %}
+{% block page_subtitle %}{% endblock %}
+
+{% block above_main %}
+{{ pipeline_banner(p.id, p.status, jobs) }}
+{% endblock %}
+
+{% block content %}
+
+<div class="mb-5 flex items-center justify-between flex-wrap gap-3">
+  <div class="flex items-center gap-3 flex-wrap">
+    {{ status_badge(p.status) }}
+    {% if p.review_type == 'narrative_review' %}
+      <span class="inline-flex items-center gap-1 rounded-md bg-violet-100 text-violet-800 text-xs font-medium px-2 py-1 border border-violet-200">📝 Artigo de resumo</span>
+    {% else %}
+      <span class="inline-flex items-center gap-1 rounded-md bg-slate-100 text-slate-700 text-xs font-medium px-2 py-1 border border-slate-200">📐 Revisão sistemática</span>
+    {% endif %}
+    {% for s in p.sources %}{{ source_badge(s) }}{% endfor %}
+  </div>
+  <div class="flex items-center gap-2 flex-wrap">
+    <a href="/projetos/{{ p.id }}/registros" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium shadow-sm">
+      Ver todos os registros ({{ m.total_articles }})
+    </a>
+
+    {% if p.status == 'done' and m.included > 0 %}
+    <!-- Dropdown de export -->
+    <div class="relative" x-data="{open: false}">
+      <button @click="open = !open" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium shadow-sm">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        Exportar
+        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      <div x-show="open" @click.away="open = false" x-cloak x-transition
+           class="absolute right-0 top-10 z-30 w-80 bg-white rounded-lg shadow-lg border border-slate-200 py-2 text-sm">
+
+        <!-- PDF: o destaque, relatório completo -->
+        <div class="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Relatório completo</div>
+        <a href="/projetos/{{ p.id }}/export?format=pdf" download
+           class="block px-3 py-3 hover:bg-brand-50 text-brand-700 font-medium border-l-2 border-brand-600">
+          📄 PDF — Incluídos + Excluídos com resumo
+          <div class="text-[10px] font-normal text-slate-500 mt-0.5">Top por score + lista de excluídos com motivo</div>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if p.status in ['draft','criteria_ready','failed'] %}
+    <form action="/projetos/{{ p.id }}/iniciar" method="post" class="inline"
+          x-data="{starting: false}" @submit="starting = true">
+      <button type="submit" :disabled="starting"
+              class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 disabled:cursor-wait text-white font-medium shadow-sm">
+        <span x-show="!starting">▶ Iniciar pipeline</span>
+        <span x-show="starting" x-cloak class="inline-flex items-center gap-1.5">
+          <svg class="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          Iniciando…
+        </span>
+      </button>
+    </form>
+    {% elif p.status in ['searching','analyzing'] %}
+    <span class="inline-flex items-center gap-1.5 text-xs text-amber-700 font-medium bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
+      <svg class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+      Pipeline rodando
+    </span>
+    {% endif %}
+
+    <!-- Menu mais (...) com excluir -->
+    <div class="relative" x-data="{open: false, confirming: false}">
+      <button @click="open = !open" class="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-slate-100 text-slate-500" title="Mais ações">
+        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+      </button>
+      <div x-show="open" @click.away="open = false" x-cloak x-transition
+           class="absolute right-0 top-10 z-30 w-56 bg-white rounded-lg shadow-lg border border-slate-200 py-2 text-sm">
+        <div x-show="!confirming">
+          <button @click="confirming = true" class="w-full text-left px-4 py-2 text-rose-600 hover:bg-rose-50">
+            🗑 Excluir projeto
+          </button>
+        </div>
+        <div x-show="confirming" x-cloak class="p-3">
+          <div class="text-xs text-slate-700 mb-2">
+            <strong>Tem certeza?</strong><br>
+            Isso apaga {{ m.total_articles }} artigos e {{ m.analyzed }} análises. Não pode ser desfeito.
+          </div>
+          <div class="flex gap-2">
+            <form action="/projetos/{{ p.id }}/excluir" method="post" class="flex-1">
+              <button type="submit" class="w-full rounded-md bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium py-1.5">Sim, excluir</button>
+            </form>
+            <button @click="confirming = false" class="rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-3">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if request.query_params.get("msg") and p.status in ['draft', 'discovering'] %}
+<div class="mb-5 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800"
+     x-data x-init="setTimeout(() => $el.remove(), 8000)">
+  ✓ {{ request.query_params.get("msg") }}
+</div>
+{% endif %}
+{% if request.query_params.get("error") %}
+<div class="mb-5 rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
+  ⚠️ {{ request.query_params.get("error") }}
+</div>
+{% endif %}
+{% if request.query_params.get("msg") or request.query_params.get("error") %}
+<script>
+  // Limpa query params da URL após render — evita que recarregamentos do polling
+  // ressuscitem flash messages que já não fazem sentido (ex: "Gerando critérios"
+  // depois que os critérios já estão prontos).
+  if (window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+</script>
+{% endif %}
+
+{% if p.error %}
+<div class="mb-5 rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
+  ⚠️ <strong>Erro no pipeline:</strong> {{ p.error }}
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+  <!-- Coluna principal: pipeline + cards -->
+  <div class="lg:col-span-2 space-y-6">
+
+    {# ── Painel "como a IA trabalha" (durante pipeline) ─────────────────── #}
+    {% if p.status in ['discovering','searching','analyzing'] %}
+    {% set is_narrative = p.review_type == 'narrative_review' %}
+    {% set min_floor = 200 if is_narrative else 500 %}
+    <div class="bg-gradient-to-br from-violet-50 via-white to-brand-50 border border-violet-200 rounded-xl shadow-card overflow-hidden">
+      <div class="px-6 py-4 border-b border-violet-200/70 flex items-center gap-3">
+        <div class="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600 text-white">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-sm font-semibold text-slate-900">A Vicky está trabalhando para você</h3>
+          <p class="text-xs text-slate-600 mt-0.5">
+            {% if is_narrative %}
+              Modo <strong>artigo de resumo</strong>: a IA varre no mínimo <strong>{{ min_floor }} artigos</strong> e aplica 4 pilares narrativos antes de fechar o Top.
+            {% else %}
+              Modo <strong>revisão sistemática</strong>: a IA varre no mínimo <strong>{{ min_floor }} artigos</strong> e aplica 4 pilares metodológicos antes de fechar o Top.
+            {% endif %}
+          </p>
+        </div>
+      </div>
+
+      <div class="px-6 py-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          {% if is_narrative %}
+          <div class="bg-white/70 rounded-lg px-3 py-2.5 border border-violet-100">
+            <div class="font-semibold text-violet-900">1. Pilar Temático</div>
+            <div class="text-slate-600 mt-0.5">Pergunta norteadora ampla, subtemas e desfechos relevantes</div>
+          </div>
+          <div class="bg-white/70 rounded-lg px-3 py-2.5 border border-violet-100">
+            <div class="font-semibold text-violet-900">2. Atualidade</div>
+            <div class="text-slate-600 mt-0.5">Janela temporal definida + clássicos fundamentais aceitos</div>
+          </div>
+          <div class="bg-white/70 rounded-lg px-3 py-2.5 border border-violet-100">
+            <div class="font-semibold text-violet-900">3. Confiabilidade</div>
+            <div class="text-slate-600 mt-0.5">Revistas indexadas, revisão por pares, instrumentos validados</div>
+          </div>
+          <div class="bg-white/70 rounded-lg px-3 py-2.5 border border-violet-100">
+            <div class="font-semibold text-violet-900">4. Utilidade para o texto</div>
+            <div class="text-slate-600 mt-0.5">Cada artigo precisa servir para introduzir, explicar, discutir ou concluir</div>
+          </div>
+          {% else %}
+          <div class="bg-white/70 rounded-lg px-3 py-2.5 border border-violet-100">
+            <div class="font-semibold text-violet-900">1. PICO</div>
+            <div class="text-slate-600 mt-0.5">População, Intervenção, Comparação e Outcome alinhados ao tema</div>
+          </div>
+          <div class="bg-white/70 rounded-lg px-3 py-2.5 border border-violet-100">
+            <div class="font-semibold text-violet-900">2. Qualidade metodológica</div>
+            <div class="text-slate-600 mt-0.5">Validação externa, multicêntrico, N amostral mínimo</div>
+          </div>
+          <div class="bg-white/70 rounded-lg px-3 py-2.5 border border-violet-100">
+            <div class="font-semibold text-violet-900">3. Atualidade</div>
+            <div class="text-slate-600 mt-0.5">Janela temporal definida no projeto</div>
+          </div>
+          <div class="bg-white/70 rounded-lg px-3 py-2.5 border border-violet-100">
+            <div class="font-semibold text-violet-900">4. Relevância aplicada</div>
+            <div class="text-slate-600 mt-0.5">Desfechos primários do campo, comparação com baseline</div>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="mt-4 grid grid-cols-3 gap-2 text-[11px] text-slate-700">
+          <div class="bg-white rounded-md px-2.5 py-2 border border-slate-200 text-center">
+            <div class="text-base font-bold text-violet-700 tabular-nums">2×</div>
+            <div class="leading-tight">passadas independentes do LLM (analyze + double-check)</div>
+          </div>
+          <div class="bg-white rounded-md px-2.5 py-2 border border-slate-200 text-center">
+            <div class="text-base font-bold text-violet-700 tabular-nums">0–100</div>
+            <div class="leading-tight">Quality Score por artigo, com critérios atendidos e violados</div>
+          </div>
+          <div class="bg-white rounded-md px-2.5 py-2 border border-slate-200 text-center">
+            <div class="text-base font-bold text-violet-700 tabular-nums">≥{{ min_floor }}</div>
+            <div class="leading-tight">artigos varridos antes do corte final</div>
+          </div>
+        </div>
+
+        <p class="mt-4 text-[11px] text-slate-500 italic leading-relaxed">
+          A IA nunca para antes do mínimo. Mesmo se a meta do Top já tiver sido atingida, ela continua varrendo até bater o piso de {{ min_floor }} artigos analisados — é assim que a curadoria fica confiável e nada de relevante passa em branco.
+        </p>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Painel pós-conclusão: indicadores de processo + resultado ──────── #}
+    {% if p.status == 'done' %}
+    {% set is_narrative_done = p.review_type == 'narrative_review' %}
+    {% set min_floor_done = 200 if is_narrative_done else 500 %}
+    {% set top_scores = top_n|map(attribute='quality_score')|select|list %}
+    {% set top_max = top_scores|max if top_scores else 0 %}
+    {% set top_min = top_scores|min if top_scores else 0 %}
+    {% set inclusion_rate = (m.included / m.analyzed * 100) if m.analyzed else 0 %}
+    <div class="bg-white rounded-xl border border-emerald-200 shadow-card overflow-hidden">
+      <div class="px-6 py-4 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white flex items-center gap-3">
+        <span class="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        </span>
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">Resumo do trabalho realizado</h3>
+          <p class="text-xs text-slate-600 mt-0.5">Indicadores do processo de triagem e do resultado final — para você revisar com confiança.</p>
+        </div>
+      </div>
+
+      <div class="px-6 py-5 space-y-5">
+        <!-- Métricas de PROCESSO -->
+        <div>
+          <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Processo de triagem</div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div class="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
+              <div class="text-xs text-slate-500">Artigos varridos</div>
+              <div class="text-xl font-bold text-slate-900 tabular-nums mt-0.5">{{ m.total_articles }}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">piso de {{ min_floor_done }}</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
+              <div class="text-xs text-slate-500">Analisados pela IA</div>
+              <div class="text-xl font-bold text-slate-900 tabular-nums mt-0.5">{{ m.analyzed }}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">cobertura {{ ((m.analyzed / m.total_articles * 100)|round|int) if m.total_articles else 0 }}%</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
+              <div class="text-xs text-slate-500">Auditados (double-check)</div>
+              <div class="text-xl font-bold text-slate-900 tabular-nums mt-0.5">{{ m.excluded }}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">2ª passada nas exclusões</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
+              <div class="text-xs text-slate-500">Discordâncias resolvidas</div>
+              <div class="text-xl font-bold text-amber-700 tabular-nums mt-0.5">{{ m.disagreements or 0 }}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">flags de revisão</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Métricas de RESULTADO -->
+        <div>
+          <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Resultado final</div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div class="bg-emerald-50 rounded-lg px-3 py-2.5 border border-emerald-200">
+              <div class="text-xs text-emerald-700">Top final</div>
+              <div class="text-xl font-bold text-emerald-900 tabular-nums mt-0.5">{{ m.included_top|default(0) }}<span class="text-sm opacity-60">/{{ p.target_articles }}</span></div>
+              <div class="text-[10px] text-emerald-700 mt-0.5">artigos selecionados</div>
+            </div>
+            <div class="bg-violet-50 rounded-lg px-3 py-2.5 border border-violet-200">
+              <div class="text-xs text-violet-700">Quality Score médio</div>
+              <div class="text-xl font-bold text-violet-900 tabular-nums mt-0.5">{{ m.top40_avg or '—' }}</div>
+              <div class="text-[10px] text-violet-700 mt-0.5">no Top final</div>
+            </div>
+            <div class="bg-blue-50 rounded-lg px-3 py-2.5 border border-blue-200">
+              <div class="text-xs text-blue-700">Faixa de qualidade</div>
+              <div class="text-xl font-bold text-blue-900 tabular-nums mt-0.5">{% if top_scores %}{{ top_min }}–{{ top_max }}{% else %}—{% endif %}</div>
+              <div class="text-[10px] text-blue-700 mt-0.5">menor / maior do Top</div>
+            </div>
+            <div class="bg-rose-50 rounded-lg px-3 py-2.5 border border-rose-200">
+              <div class="text-xs text-rose-700">Taxa de inclusão</div>
+              <div class="text-xl font-bold text-rose-900 tabular-nums mt-0.5">{{ inclusion_rate|round(1) }}%</div>
+              <div class="text-[10px] text-rose-700 mt-0.5">{{ m.included }} de {{ m.analyzed }} analisados</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Insights por fonte -->
+        {% if m.by_source %}
+        <div>
+          <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Cobertura por fonte</div>
+          <div class="flex flex-wrap gap-2 text-xs">
+            {% for src in m.by_source %}
+            <div class="inline-flex items-center gap-2 bg-white border border-slate-200 rounded-md px-2.5 py-1.5">
+              {{ source_badge(src.source) }}
+              <span class="font-semibold tabular-nums text-slate-900">{{ src.n }}</span>
+              <span class="text-slate-500">artigos</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# ── Frase de fechamento ramificada por caminho de saída ──
+           Determina qual das 3 condições terminou o pipeline:
+             1) SUCCESS_FULL: Top N atingido (meta cumprida)
+             2) MAX_REACHED:  varreu cap de 1300 sem chegar no Top N
+             3) SOURCE_EXHAUSTED: fonte esgotada antes do cap (tema muito específico) #}
+        {% set max_total = 1300 %}
+        {% set top_count = m.included_top|default(0) %}
+        {% set reached_target = top_count >= p.target_articles %}
+        {% set hit_max = m.analyzed >= max_total %}
+        {% set is_full_success = reached_target %}
+        {% set is_max_reached = (not reached_target) and hit_max %}
+        {% set is_source_exhausted = (not reached_target) and (not hit_max) %}
+
+        {% if is_full_success %}
+        <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-xs text-emerald-900 leading-relaxed">
+          {% if is_narrative_done %}
+            ✓ <strong>Modo artigo de resumo concluído com sucesso.</strong> A Vicky varreu {{ m.total_articles }} artigos (piso de {{ min_floor_done }}, teto de {{ max_total }}), analisou {{ m.analyzed }} pela IA em duas passadas independentes e separou os {{ top_count }} mais úteis para o seu texto — atingindo a sua meta de {{ p.target_articles }}.
+          {% else %}
+            ✓ <strong>Revisão sistemática concluída com sucesso.</strong> A Vicky varreu {{ m.total_articles }} artigos (piso de {{ min_floor_done }}, teto de {{ max_total }}), analisou {{ m.analyzed }} pela IA aplicando critérios PICO + qualidade metodológica em duas passadas e elegeu os {{ top_count }} melhores — atingindo a sua meta de {{ p.target_articles }}.
+          {% endif %}
+        </div>
+        {% elif is_max_reached %}
+        <div class="rounded-lg bg-amber-50 border border-amber-300 px-4 py-3 text-xs text-amber-900 leading-relaxed space-y-1.5">
+          <p>⚠️ <strong>Análise completa: máximo de {{ max_total }} artigos varridos.</strong></p>
+          <p>Para manter o processo correto e perfeito, a Vicky analisou o teto de <strong>{{ m.analyzed }} artigos</strong> exigido pela regra de qualidade. Mesmo assim, só consegui chegar no <strong>Top {{ top_count }}</strong> — a sua meta era {{ p.target_articles }}.</p>
+          <p>Isso significa que o tema é exigente: poucos estudos atendem simultaneamente aos critérios PICO e ao patamar mínimo de qualidade metodológica. <strong>É um resultado válido e auditável</strong> — a ferramenta varreu o cap exigido pela regra de qualidade antes de parar. Para chegar perto da sua meta, considere afrouxar critérios PICO ou aceitar o Top {{ top_count }} como resultado final.</p>
+        </div>
+        {% else %} {# is_source_exhausted #}
+        <div class="rounded-lg bg-blue-50 border border-blue-300 px-4 py-3 text-xs text-blue-900 leading-relaxed space-y-1.5">
+          <p>ℹ️ <strong>Análise completa: fonte da literatura esgotada.</strong></p>
+          <p>As bases científicas (PubMed, SciELO, Google Scholar) retornaram apenas <strong>{{ m.total_articles }} artigos</strong> sobre esse tema. A IA analisou todos os {{ m.analyzed }} relevantes e encontrou <strong>{{ top_count }}</strong> que atendem aos critérios — a sua meta era {{ p.target_articles }}.</p>
+          <p><strong>Isso não é falha da ferramenta.</strong> O tema é muito específico, e a literatura disponível é limitada nas bases consultadas. A Vicky tentou várias alavancas antes de aceitar o esgotamento:</p>
+          <ul class="list-disc list-inside ml-2 space-y-0.5 text-blue-800">
+            <li>Até 20 rotações de termos pelo agente de descoberta</li>
+            <li>Até 50 expansões mecânicas da consulta</li>
+            <li>Até 5 reformulações radicais (ângulos novos do agente)</li>
+            <li>Até 3 expansões automáticas da janela temporal (atual: {{ p.years_window }} anos)</li>
+          </ul>
+          <p>Para encontrar mais artigos, considere reformular o tema com termos mais amplos ou afrouxar critérios PICO.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Top N (dinâmico, baseado em p.target_articles) -->
+    {% if top_n %}
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+        <h3 class="text-sm font-semibold text-slate-900">
+          🏆 Top {{ top_n|length }}
+          {% if top_n|length < p.target_articles %}
+            <span class="text-xs font-normal text-amber-700 ml-2">(meta: {{ p.target_articles }} — só {{ top_n|length }} artigos atendem aos critérios)</span>
+          {% else %}
+            <span class="text-xs font-normal text-slate-500 ml-2">de {{ p.target_articles }} (meta)</span>
+          {% endif %}
+        </h3>
+        <a href="/projetos/{{ p.id }}/registros?decision=include&sort=score_desc" class="text-xs text-brand-600 hover:text-brand-700 font-medium">Ver lista completa →</a>
+      </div>
+
+      {% if top_n|length < p.target_articles %}
+      {% set _max_total = 1300 %}
+      {% set _hit_max = m.analyzed >= _max_total %}
+      <div class="px-6 py-3 {% if _hit_max %}bg-amber-50 border-b border-amber-200 text-amber-800{% else %}bg-blue-50 border-b border-blue-200 text-blue-800{% endif %} text-xs">
+        {% if _hit_max %}
+          ⚠️ A IA varreu o máximo de <strong>{{ m.analyzed }} artigos</strong> e encontrou apenas <strong>{{ top_n|length }}</strong> que atendem aos critérios — sua meta era {{ p.target_articles }}.
+          O tema é exigente: poucos estudos recentes cumprem PICO + qualidade metodológica.
+        {% else %}
+          ℹ️ As bases científicas retornaram apenas <strong>{{ m.total_articles }} artigos</strong> sobre esse tema, e <strong>{{ top_n|length }}</strong> atendem aos critérios — sua meta era {{ p.target_articles }}.
+          O tema é muito específico; a literatura disponível é limitada (não é falha da ferramenta).
+        {% endif %}
+        <strong>O sistema nunca inclui artigos que não atendem aos critérios.</strong>
+      </div>
+      {% endif %}
+
+      <div class="divide-y divide-slate-100">
+        {% for r in top_n[:10] %}
+        <a href="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}" class="flex items-start gap-3 px-6 py-3 hover:bg-slate-50 transition">
+          <div class="shrink-0 mt-0.5">{{ score_pill(r.quality_score) }}</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-slate-900 line-clamp-1">{{ loop.index }}. {{ r.title }}</div>
+            <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+              {{ source_badge(r.source) }}
+              <span>{{ r.year or "—" }}</span>
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Banner de revisão de critérios (mostrado quando discovery acabou e pipeline ainda não rodou) -->
+    {% if p.status == 'criteria_ready' and m.total_articles == 0 %}
+    <div class="bg-violet-50 border border-violet-300 rounded-xl p-5 shadow-card">
+      <div class="flex items-start gap-3">
+        <div class="shrink-0 mt-0.5">
+          <svg class="h-6 w-6 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-sm font-semibold text-violet-900">Critérios PICO gerados — revise antes de iniciar o pipeline</h3>
+          <p class="text-xs text-violet-800 mt-1">Esses são os filtros que a IA vai aplicar em cada artigo encontrado. Revise abaixo, edite se quiser, e quando estiver pronta clique em <strong>"Iniciar pipeline"</strong> no topo da página (cobra 1 crédito).</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Critérios + strings de busca -->
+    {% if p.criteria_md %}
+    <details class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6 group"
+             {% if p.status == 'criteria_ready' and m.total_articles == 0 %}open{% endif %}>
+      <summary class="flex items-center justify-between text-sm font-semibold text-slate-900 cursor-pointer list-none">
+        <span>📋 Critérios PICO + Strings de busca (geradas pela IA)</span>
+        <svg class="h-4 w-4 transition group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      </summary>
+      <div class="mt-4 space-y-4">
+        {% if p.search_strings %}
+        <div>
+          <h4 class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Strings de busca</h4>
+          <div class="space-y-2">
+            {% for source, qs in p.search_strings.items() if qs %}
+            <div>
+              <div class="text-xs text-slate-500 mb-1">{{ source }}</div>
+              <pre class="text-xs bg-slate-50 border border-slate-200 rounded p-2 overflow-x-auto whitespace-pre-wrap">{{ qs }}</pre>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        <div>
+          <h4 class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Critérios</h4>
+          <div class="prose prose-sm max-w-none text-slate-700 whitespace-pre-wrap font-mono text-xs bg-slate-50 border border-slate-200 rounded p-3">{{ p.criteria_md }}</div>
+        </div>
+      </div>
+    </details>
+    {% endif %}
+
+    <!-- Pipeline (colapsado por padrão; abre automaticamente enquanto roda ou se falhou) -->
+    <script>
+      window.__pipelineInitial_{{ p.id }} = {
+        jobs: {{ jobs|tojson }},
+        status: {{ p.status|tojson }},
+        projectId: {{ p.id }},
+        liveAction: '',
+        _phraseStep: null,
+        _phraseIdx: 0,
+        _actionTimer: null,
+        _creepByStep: {},
+        rotateAction() {
+          const running = (this.jobs || []).find(j => j.status === 'running');
+          const step = running ? running.step : (this.status === 'discovering' ? 'discovery' : null);
+          if (!step) { this.liveAction = ''; return; }
+          const phrases = (window.__livePhrases || {})[step] || [`Trabalhando em ${step}…`];
+          if (this._phraseStep !== step) { this._phraseStep = step; this._phraseIdx = 0; }
+          else { this._phraseIdx = (this._phraseIdx + 1) % phrases.length; }
+          this.liveAction = phrases[this._phraseIdx];
+          const delays = [4000, 5000, 6000, 7000, 9000, 11000, 13000, 16000, 20000, 25000, 28000];
+          const next = delays[Math.floor(Math.random() * delays.length)];
+          if (this._actionTimer) clearTimeout(this._actionTimer);
+          this._actionTimer = setTimeout(() => this.rotateAction(), next);
+        },
+        displayProgressFor(job) {
+          const real = job.progress || 0;
+          if (job.status !== 'running') return real;
+          const prev = this._creepByStep[job.step] || real;
+          const ceiling = Math.min(99, real + 8);
+          const next = Math.min(ceiling, Math.max(real, prev + 0.4));
+          this._creepByStep[job.step] = next;
+          return Math.round(next);
+        },
+      };
+    </script>
+    <details class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6 group"
+             {% if p.status != 'done' %}open{% endif %}
+             x-data="window.__pipelineInitial_{{ p.id }}"
+             x-init="
+                     rotateAction();
+                     setInterval(() => { /* tick para forçar reflow do creep */ jobs = [...jobs]; }, 1000);
+                     if (status !== 'done' && status !== 'failed') {
+                       setInterval(async () => {
+                         const r = await fetch('/projetos/' + projectId + '/status');
+                         const d = await r.json();
+                         const prevStep = (jobs.find(j => j.status === 'running') || {}).step;
+                         const prevStatus = status;
+                         jobs = d.jobs; status = d.status;
+                         const newStep = (jobs.find(j => j.status === 'running') || {}).step;
+                         if (newStep !== prevStep) rotateAction();
+                         // Auto-abre o painel quando a execução começa (transição de draft/criteria_ready
+                         // para discovering/searching/analyzing). Garante visibilidade da sequência.
+                         const runningStates = ['discovering','searching','analyzing'];
+                         if (runningStates.includes(d.status) && !runningStates.includes(prevStatus)) {
+                           $el.open = true;
+                         }
+                         if (d.is_done) location.reload();
+                       }, 3000);
+                     }">
+      <summary class="flex items-center justify-between text-sm font-semibold text-slate-900 cursor-pointer list-none">
+        <span>⚙️ Pipeline <span class="text-xs font-normal text-slate-500 ml-1">(sequência de ações executadas)</span></span>
+        <svg class="h-4 w-4 transition group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      </summary>
+      <div class="space-y-3 mt-4">
+        {% set step_labels = {
+          'discovery': 'Discovery agent (gera critérios)',
+          'search_pubmed': 'Busca PubMed',
+          'search_scielo': 'Busca SciELO',
+          'search_scholar': 'Busca Google Scholar',
+          'dedup': 'Dedup por DOI',
+          'analyze': 'Triagem IA (1ª passada)',
+          'double_check': 'Double-check (2ª passada)',
+          'verify': 'Verificação final (checklist)',
+        } %}
+        <script>window.__stepLabels_{{ p.id }} = {{ step_labels|tojson }};</script>
+        <template x-for="job in jobs" :key="job.id">
+          <div class="flex items-center gap-3">
+            <template x-if="job.status === 'success'">
+              <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+              </span>
+            </template>
+            <template x-if="job.status === 'failed'">
+              <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </span>
+            </template>
+            <template x-if="job.status === 'running'">
+              <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-dashoffset="20"/></svg>
+              </span>
+            </template>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-slate-900" x-text="window.__stepLabels_{{ p.id }}[job.step] || job.step"></span>
+                <span class="text-xs tabular-nums text-slate-500" x-text="displayProgressFor(job) + '%'"></span>
+              </div>
+              <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+                <template x-if="job.status === 'running'">
+                  <span class="inline-flex items-center gap-1.5">
+                    <span class="inline-block h-1.5 w-1.5 rounded-full bg-brand-500 animate-pulse"></span>
+                    <span class="text-brand-700 font-medium" x-text="liveAction"></span>
+                    <span class="opacity-60" x-show="job.message" x-text="`· ${job.message}`"></span>
+                  </span>
+                </template>
+                <template x-if="job.status !== 'running'">
+                  <span x-text="job.message || job.error"></span>
+                </template>
+              </div>
+              <div class="h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden relative">
+                <div class="h-full transition-all duration-700 ease-out"
+                     :class="job.status === 'failed' ? 'bg-rose-500' : (job.status === 'running' ? 'bg-brand-500 bar-running' : 'bg-brand-500')"
+                     :style="`width: ${displayProgressFor(job)}%`"></div>
+                <template x-if="job.status === 'running'">
+                  <div class="absolute inset-y-0 w-12 bg-gradient-to-r from-transparent via-white/70 to-transparent animate-shimmer"
+                       :style="`left: calc(${displayProgressFor(job)}% - 3rem)`"></div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+        <div x-show="jobs.length === 0" class="text-sm text-slate-500 text-center py-4">
+          Pipeline ainda não iniciado. Clique em <strong>Iniciar pipeline</strong> acima.
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- Sidebar: métricas -->
+  <aside class="space-y-5">
+    <!-- Meta de artigos (editável) -->
+    <div class="bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl shadow-card p-5 text-white" x-data="{editing: false}">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-xs uppercase tracking-wider opacity-90 font-semibold">🎯 Meta do Top</div>
+          <div class="mt-2 text-4xl font-bold tabular-nums" x-show="!editing">
+            {{ m.included_top|default(0) }}<span class="text-2xl opacity-70">/{{ p.target_articles }}</span>
+          </div>
+          <div class="mt-1 text-xs opacity-90" x-show="!editing">
+            {% if m.included_top >= p.target_articles %}
+              ✓ Top completo · {{ m.below_cutoff|default(0) }} elegíveis fora do corte
+            {% elif m.included > 0 %}
+              ⚠ só {{ m.included }} atendem aos critérios
+            {% else %}
+              Aguardando análise
+            {% endif %}
+          </div>
+        </div>
+        {% if user.can("view_records") %}
+        <button @click="editing = !editing" class="shrink-0 text-xs underline opacity-90 hover:opacity-100" x-show="!editing">Editar</button>
+        {% endif %}
+      </div>
+
+      <!-- Form de edição -->
+      <form action="/projetos/{{ p.id }}/atualizar" method="post" x-show="editing" x-cloak class="mt-3 space-y-2">
+        <label class="block text-xs opacity-90">Quantos artigos no Top final? (1–50)</label>
+        <input type="number" name="target_articles" value="{{ p.target_articles }}" min="1" max="50"
+               class="w-full rounded-md border-0 text-slate-900 text-sm focus:ring-2 focus:ring-white">
+        <p class="text-[11px] opacity-90 leading-snug">Teto de 50 para preservar a triagem minuciosa em duas passadas — qualidade acima de quantidade.</p>
+        <div class="flex gap-2">
+          <button type="submit" class="flex-1 rounded-md bg-white text-brand-700 text-sm font-medium py-1.5 hover:bg-brand-50">Salvar</button>
+          <button type="button" @click="editing = false" class="rounded-md bg-white/20 text-white text-sm py-1.5 px-3 hover:bg-white/30">Cancelar</button>
+        </div>
+      </form>
+    </div>
+
+    <script>
+      window.__resumoInitial_{{ p.id }} = {
+        total: {{ m.total_articles or 0 }},
+        included: {{ m.included or 0 }},
+        excluded: {{ m.excluded or 0 }},
+        uncertain: {{ m.uncertain or 0 }},
+        disagreements: {{ m.disagreements or 0 }},
+        user_overrides: {{ m.user_overrides or 0 }},
+        status: {{ p.status|tojson }},
+        pulse: false,
+        projectId: {{ p.id }},
+        _poller: null,
+        init() {
+          if (this.status === 'done' || this.status === 'failed') return;
+          this._poller = setInterval(async () => {
+            try {
+              const r = await fetch('/projetos/' + this.projectId + '/status');
+              if (!r.ok) return;
+              const d = await r.json();
+              const mm = d.metrics || {};
+              const newTotal = (mm.total_articles !== undefined) ? mm.total_articles : this.total;
+              if (newTotal !== this.total) {
+                this.pulse = true;
+                setTimeout(() => { this.pulse = false; }, 600);
+              }
+              this.total = newTotal;
+              if (mm.included !== undefined) this.included = mm.included;
+              if (mm.excluded !== undefined) this.excluded = mm.excluded;
+              if (mm.uncertain !== undefined) this.uncertain = mm.uncertain;
+              if (mm.disagreements !== undefined) this.disagreements = mm.disagreements;
+              if (mm.user_overrides !== undefined) this.user_overrides = mm.user_overrides;
+              this.status = d.status;
+              if (d.status === 'done' || d.status === 'failed') {
+                clearInterval(this._poller);
+              }
+            } catch (e) { /* ignora */ }
+          }, 3000);
+        },
+      };
+    </script>
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5"
+         x-data="window.__resumoInitial_{{ p.id }}">
+      <h3 class="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
+        Resumo
+        <span x-show="status !== 'done' && status !== 'failed'"
+              class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" x-cloak></span>
+      </h3>
+      <dl class="space-y-3 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Artigos</dt>
+          <dd class="font-semibold tabular-nums transition-colors"
+              :class="pulse ? 'text-emerald-600' : 'text-slate-900'"
+              x-text="total">{{ m.total_articles }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Incluídos</dt>
+          <dd class="text-emerald-600 font-semibold tabular-nums" x-text="included">{{ m.included }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Excluídos</dt>
+          <dd class="text-rose-600 tabular-nums" x-text="excluded">{{ m.excluded }}</dd>
+        </div>
+        <div class="flex justify-between" x-show="uncertain > 0" {% if not m.uncertain %}x-cloak{% endif %}>
+          <dt class="text-slate-500">Incertos</dt>
+          <dd class="text-amber-600 tabular-nums" x-text="uncertain">{{ m.uncertain or 0 }}</dd>
+        </div>
+        <div class="flex justify-between" x-show="user_overrides > 0" {% if not m.user_overrides %}x-cloak{% endif %}>
+          <dt class="text-slate-500">Sua revisão</dt>
+          <dd class="text-violet-600 tabular-nums" x-text="user_overrides">{{ m.user_overrides or 0 }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    {% if m.by_source %}
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+      <h3 class="text-sm font-semibold text-slate-900 mb-3">Por fonte</h3>
+      <div class="space-y-2">
+        {% for src in m.by_source %}
+        <div class="flex items-center justify-between text-sm">
+          {{ source_badge(src.source) }}
+          <span class="tabular-nums font-medium">{{ src.n }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if m.top40_avg %}
+    <div class="bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl shadow-card p-5 text-white">
+      <div class="text-xs uppercase tracking-wider opacity-90">Quality Score médio do Top 40</div>
+      <div class="mt-2 text-3xl font-bold tabular-nums">{{ m.top40_avg }}</div>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+
+{% endblock %}

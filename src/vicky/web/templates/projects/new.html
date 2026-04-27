@@ -1,0 +1,196 @@
+{% extends "app_layout.html" %}
+{% block title %}Novo projeto · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5">Iniciar novo projeto</div>{% endblock %}
+{% block page_title %}Conte para a Vicky o que você quer pesquisar{% endblock %}
+{% block page_subtitle %}<p class="text-xs text-slate-500 mt-1.5 max-w-2xl">A IA gera critérios PICO transparentes e busca nos portais que você escolher. Você ainda revisa tudo antes de gastar crédito.</p>{% endblock %}
+
+{% block content %}
+
+<form action="/projetos" method="post" class="max-w-3xl space-y-6"
+      x-data="{review_type: 'systematic_review'}">
+
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
+    <h3 class="text-sm font-semibold text-slate-900 mb-4">1. Tipo de revisão</h3>
+    <p class="text-xs text-slate-500 mb-4">A IA gera critérios de inclusão/exclusão diferentes em cada modo. Você escolhe — pode mudar depois criando outro projeto, mas não no mesmo.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <label class="flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition"
+             :class="review_type === 'systematic_review' ? 'border-brand-500 bg-brand-50/50' : 'border-slate-200 hover:border-brand-300'">
+        <input type="radio" name="review_type" value="systematic_review" x-model="review_type"
+               class="mt-1 text-brand-600 focus:ring-brand-500">
+        <div>
+          <div class="text-sm font-semibold text-slate-900">📐 Revisão sistemática</div>
+          <div class="text-xs text-slate-500 mt-1">
+            Critérios <strong>rígidos</strong>: exige validação externa, multicentrismo, N mínimo, baseline. Foco em selecionar a elite metodológica.
+          </div>
+        </div>
+      </label>
+      <label class="flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition"
+             :class="review_type === 'narrative_review' ? 'border-brand-500 bg-brand-50/50' : 'border-slate-200 hover:border-brand-300'">
+        <input type="radio" name="review_type" value="narrative_review" x-model="review_type"
+               class="mt-1 text-brand-600 focus:ring-brand-500">
+        <div>
+          <div class="text-sm font-semibold text-slate-900">📝 Artigo de resumo / revisão narrativa</div>
+          <div class="text-xs text-slate-500 mt-1">
+            Critérios <strong>flexíveis e qualificados</strong>: aceita revisões, guidelines, atualização. Foco em referências atuais, didáticas e úteis para escrever o texto.
+          </div>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
+    <h3 class="text-sm font-semibold text-slate-900 mb-4">2. Defina o tema da sua pesquisa</h3>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">Tema da pesquisa *</label>
+        <input type="text" name="topic" required autofocus
+               class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm"
+               placeholder="ex: Uso de células-tronco na regeneração de tecido miocárdico">
+        <p class="mt-1 text-xs text-slate-500">Seja específica — quanto mais claro o tema, mais afiados os critérios.</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">Objetivo (opcional)</label>
+        <textarea name="objective" rows="2"
+                  class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm"
+                  placeholder="ex: Avaliar a eficácia clínica e segurança em humanos"></textarea>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Janela temporal</label>
+          <select name="years_window" class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
+            <option value="3">Últimos 3 anos (tecnologias muito novas)</option>
+            <option value="5" selected>Últimos 5 anos (recomendado)</option>
+            <option value="7">Últimos 7 anos</option>
+            <option value="10">Últimos 10 anos (temas mais estáveis)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">
+            🎯 Meta de artigos no Top final
+          </label>
+          <input type="number" name="target_articles" value="40" min="1" max="50"
+                 class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
+          <p class="mt-1 text-xs text-slate-500">
+            Limite de <strong>50 artigos</strong> no Top final. Cada artigo passa por triagem minuciosa em duas passadas independentes, com Quality Score auditado — manter o teto preserva a profundidade da análise e a fidelidade dos critérios PICO. Mais artigos diluiriam a curadoria; melhor entregar uma elite metodológica do que uma lista inflada.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
+    <h3 class="text-sm font-semibold text-slate-900 mb-4">3. Onde buscar</h3>
+    <div class="space-y-3">
+      {% set sources = [
+        ("pubmed", "PubMed", "Padrão-ouro médico (E-utilities API). Sempre rápido e confiável.", true),
+        ("scielo", "SciELO", "Foco regional/luso (Brasil + LatAm). Útil para pesquisa local.", true),
+        ("scholar", "Google Scholar", "Rede ampla. Pode ser bloqueado por CAPTCHA — use com moderação.", true),
+      ] %}
+      {% for value, label, desc, default in sources %}
+      <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:border-brand-300 cursor-pointer">
+        <input type="checkbox" name="sources" value="{{ value }}" {% if default %}checked{% endif %}
+               class="mt-1 rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+        <div>
+          <div class="text-sm font-medium text-slate-900">{{ label }}</div>
+          <div class="text-xs text-slate-500">{{ desc }}</div>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Painel explicativo: revisão sistemática -->
+  <div class="bg-violet-50 border border-violet-200 rounded-xl p-5 text-sm text-violet-900"
+       x-show="review_type === 'systematic_review'">
+    <h4 class="font-semibold mb-2 flex items-center gap-2">
+      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      Como a IA decide o que incluir ou excluir (revisão sistemática)
+    </h4>
+    <p class="text-xs text-violet-800 mb-3">Para cada projeto a Vicky monta um <strong>protocolo de seleção PICO</strong> com 4 pilares + Quality Score 0–100. Esse protocolo é o filtro que o sistema usa em cada artigo:</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-violet-800">
+      <div class="bg-white/60 rounded-md px-3 py-2 border border-violet-200/60">
+        <div class="font-semibold text-violet-900">1. PICO</div>
+        População, Intervenção, Comparação e Outcome adaptados ao seu tema
+      </div>
+      <div class="bg-white/60 rounded-md px-3 py-2 border border-violet-200/60">
+        <div class="font-semibold text-violet-900">2. Qualidade metodológica</div>
+        Validação externa, multicêntrico, N amostral mínimo
+      </div>
+      <div class="bg-white/60 rounded-md px-3 py-2 border border-violet-200/60">
+        <div class="font-semibold text-violet-900">3. Atualidade</div>
+        Janela temporal definida acima
+      </div>
+      <div class="bg-white/60 rounded-md px-3 py-2 border border-violet-200/60">
+        <div class="font-semibold text-violet-900">4. Relevância aplicada</div>
+        Desfechos primários do campo, comparação com baseline
+      </div>
+    </div>
+    <p class="text-xs text-violet-800 mt-3">👉 Recomendado: clique em <strong>"Pré-visualizar critérios"</strong> abaixo para revisar o protocolo gerado antes de gastar crédito com a busca completa.</p>
+  </div>
+
+  <!-- Painel explicativo: revisão narrativa / artigo de resumo -->
+  <div class="bg-violet-50 border border-violet-200 rounded-xl p-5 text-sm text-violet-900"
+       x-show="review_type === 'narrative_review'" x-cloak>
+    <h4 class="font-semibold mb-2 flex items-center gap-2">
+      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      Como a IA decide o que incluir ou excluir (artigo de resumo)
+    </h4>
+    <p class="text-xs text-violet-800 mb-3">Para artigos de resumo a Vicky monta um protocolo com <strong>4 pilares narrativos</strong> + Quality Score 0–100 voltado para <strong>utilidade didática</strong>. Critérios são flexíveis mas qualificados:</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-violet-800">
+      <div class="bg-white/60 rounded-md px-3 py-2 border border-violet-200/60">
+        <div class="font-semibold text-violet-900">1. Pilar Temático</div>
+        Pergunta norteadora ampla, subtemas e desfechos relevantes
+      </div>
+      <div class="bg-white/60 rounded-md px-3 py-2 border border-violet-200/60">
+        <div class="font-semibold text-violet-900">2. Atualidade</div>
+        Janela temporal + clássicos fundamentais aceitos
+      </div>
+      <div class="bg-white/60 rounded-md px-3 py-2 border border-violet-200/60">
+        <div class="font-semibold text-violet-900">3. Confiabilidade</div>
+        Revistas indexadas, revisão por pares, instrumentos validados
+      </div>
+      <div class="bg-white/60 rounded-md px-3 py-2 border border-violet-200/60">
+        <div class="font-semibold text-violet-900">4. Utilidade para o texto</div>
+        Cada artigo precisa servir para introduzir, explicar, discutir ou concluir
+      </div>
+    </div>
+    <p class="text-xs text-violet-800 mt-3">⚠️ <strong>Não exige</strong> validação externa, multicentrismo, grupo controle ou N mínimo. <strong>Aceita</strong> revisões sistemáticas, metanálises, guidelines, consensos, revisões narrativas e artigos de atualização.</p>
+    <p class="text-xs text-violet-800 mt-2">👉 Recomendado: clique em <strong>"Pré-visualizar critérios"</strong> antes de gastar crédito com a busca completa.</p>
+  </div>
+
+  <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm text-blue-900">
+    <h4 class="font-semibold mb-2">📋 O que vai acontecer</h4>
+    <ol class="text-xs space-y-1 list-decimal list-inside text-blue-800">
+      <li>Discovery agent gera critérios PICO + search strings (~30s)</li>
+      <li>Busca em paralelo nos portais selecionados (~2-5min)</li>
+      <li>Dedup por DOI</li>
+      <li>Triagem com IA (Quality Score 0-100) (~3-5min)</li>
+      <li>Double-check em todas as exclusões</li>
+      <li>Verificação final + Top {{ ' ' }}<span class="tabular-nums">N</span>{{ ' ' }}ranqueado</li>
+    </ol>
+  </div>
+
+  <div class="flex items-center justify-between gap-3 flex-wrap">
+    <a href="/projetos" class="text-sm text-slate-600 hover:text-slate-900">← Cancelar</a>
+    <div class="flex gap-2 flex-wrap">
+      <button type="submit" name="auto_run" value=""
+              class="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium px-4 py-2 transition">
+        Salvar como rascunho
+      </button>
+      <button type="submit" name="auto_run" value="preview"
+              class="inline-flex items-center gap-2 rounded-lg bg-white border border-brand-300 hover:bg-brand-50 text-brand-700 text-sm font-medium px-4 py-2 transition">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        Pré-visualizar critérios
+      </button>
+      <button type="submit" name="auto_run" value="1"
+              class="inline-flex items-center gap-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-5 py-2.5 transition shadow-sm">
+        Criar e iniciar tudo direto
+      </button>
+    </div>
+  </div>
+</form>
+
+{% endblock %}

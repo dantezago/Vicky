@@ -1,0 +1,67 @@
+{% extends "app_layout.html" %}
+{% from "components/project_status.html" import status_badge, source_badge %}
+{% from "components/empty_state.html" import empty_state %}
+{% block title %}Projetos · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5">Workspace</div>{% endblock %}
+{% block page_title %}Projetos{% endblock %}
+{% block page_subtitle %}<p class="text-xs text-slate-500 mt-1 vk-mono uppercase tracking-[0.12em]">{{ projects|length }} {% if projects|length == 1 %}projeto{% else %}projetos{% endif %} no workspace</p>{% endblock %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
+  <p class="text-sm text-slate-600 max-w-2xl leading-relaxed">
+    Cada projeto é uma busca científica completa: tema → critérios PICO → triagem em duas passadas → Top N ranqueado.
+  </p>
+  <a href="/projetos/novo" class="vk-btn vk-btn-primary">
+    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+    Novo projeto
+  </a>
+</div>
+
+{% if projects %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+  {% for p in projects %}
+  <a href="/projetos/{{ p.id }}"
+     class="vk-card lift block p-5 group vk-reveal" data-delay="{{ ((loop.index0 % 4) + 1) }}">
+    <div class="flex items-start justify-between mb-3">
+      <div class="flex items-center gap-2 flex-wrap">
+        {{ status_badge(p.status) }}
+        {% if p.review_type == 'narrative_review' %}
+        <span class="vk-pill vk-pill-violet vk-pill-mono uppercase tracking-wider">📝 Resumo</span>
+        {% else %}
+        <span class="vk-pill vk-pill-slate vk-pill-mono uppercase tracking-wider">📐 Sistemática</span>
+        {% endif %}
+      </div>
+      <span class="vk-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">#{{ p.id }}</span>
+    </div>
+    <h3 class="font-display text-[17px] font-bold text-slate-900 leading-[1.35] tracking-tight group-hover:text-brand-700 transition line-clamp-2">{{ p.topic }}</h3>
+    {% if p.objective %}
+    <p class="mt-2.5 text-[13px] text-slate-500 line-clamp-2 leading-relaxed">{{ p.objective }}</p>
+    {% endif %}
+    <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+      <div class="flex flex-wrap gap-1.5">
+        {% for s in p.sources %}{{ source_badge(s) }}{% endfor %}
+      </div>
+      <span class="vk-mono text-[10.5px] uppercase tracking-[0.12em] text-slate-400 tabular-nums">{{ p.created_at[:10] }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="vk-card text-center px-6 py-16">
+  <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-brand-500 border border-brand-100 mb-5 shadow-brand-sm">
+    <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+  </div>
+  <div class="vk-eyebrow mb-2 justify-center" style="display:inline-flex;">Comece aqui</div>
+  <h2 class="font-display text-2xl font-bold text-slate-900 tracking-tighter">Nenhum projeto ainda</h2>
+  <p class="text-sm text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">Crie seu primeiro projeto para começar a triar artigos a partir de um tema.</p>
+  <div class="mt-6">
+    <a href="/projetos/novo" class="vk-btn vk-btn-primary vk-btn-lg">
+      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Criar projeto
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

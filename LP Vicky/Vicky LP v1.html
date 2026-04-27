@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vicky — Pesquisa científica, sem o trabalho braçal</title>
+<meta name="description" content="Vicky lê, avalia e ranqueia milhares de papers acadêmicos para você. Pipeline automatizado, Quality Score auditável, Top 40 entregue pronto." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ============== NAV ============== -->
+<nav class="nav" aria-label="Principal">
+  <div class="container nav-inner">
+    <a class="nav-brand" href="#top" aria-label="Vicky — início">
+      <span class="nav-logo" aria-hidden="true">V</span>
+      <span class="nav-wordmark">Vicky</span>
+    </a>
+    <div class="nav-links" role="menubar">
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#produto">Produto</a>
+      <a href="#personas">Para quem</a>
+      <a href="#numeros">Resultados</a>
+      <a href="#planos">Planos</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost-pink" href="#login">Entrar</a>
+      <a class="btn btn-primary" href="#cta">Começar grátis</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============== HERO ============== -->
+<header class="hero" id="top">
+  <div class="hero-bg" aria-hidden="true">
+    <div class="hero-mesh-1"></div>
+    <div class="hero-mesh-2"></div>
+    <div class="hero-grid"></div>
+  </div>
+  <div class="container hero-inner">
+    <div>
+      <span class="hero-eyebrow reveal">
+        <span class="live-dot" aria-hidden="true"></span>
+        14.382 papers processados esta semana
+      </span>
+      <h1 class="reveal" data-delay="1">
+        Pesquisa&nbsp;científica, <br/>
+        <span class="gradient-text">sem o trabalho braçal.</span>
+      </h1>
+      <p class="hero-sub reveal" data-delay="2">
+        A Vicky lê, avalia e ranqueia milhares de papers acadêmicos por você.
+        Você recebe um Top 40 auditável, com Quality Score, em vez de uma planilha de 4.000 abstracts.
+      </p>
+      <div class="hero-cta reveal" data-delay="3">
+        <a class="btn btn-primary btn-large" href="#cta">Começar grátis →</a>
+        <a class="btn btn-ghost-light btn-large" href="#produto">Ver demo de 90s</a>
+      </div>
+      <p class="hero-fineprint reveal" data-delay="4">14 dias grátis · sem cartão · cancela em 1 clique</p>
+
+      <div class="hero-proof reveal" data-delay="5">
+        <div class="avatar-stack" aria-hidden="true">
+          <div class="avatar">CL</div>
+          <div class="avatar v2">MR</div>
+          <div class="avatar v3">JP</div>
+          <div class="avatar v4">AS</div>
+          <div class="avatar v5">+</div>
+        </div>
+        <div class="proof-text">
+          <span class="stars">★★★★★</span>
+          <span><b style="color:#fff;font-weight:600">2.300+ pesquisadores</b> usam a Vicky</span>
+          <small>USP · UNICAMP · UFRJ · UFMG · FGV · Insper</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pipeline mockup -->
+    <div class="pipeline-mockup reveal" data-delay="2" aria-label="Demonstração do pipeline">
+      <div class="pm-header">
+        <div class="pm-title">
+          <span class="pm-spinner" aria-hidden="true"></span>
+          <b>Revisão sistemática</b>
+          <span class="sep">·</span>
+          <span>Hipertensão + IA</span>
+        </div>
+        <div class="pm-window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      </div>
+      <div class="pm-progress-row">
+        <span class="label">Pipeline</span>
+        <div class="pm-bar"><div class="pm-bar-fill"></div></div>
+        <span class="pm-pct" id="pmPct">56%</span>
+      </div>
+      <ul class="pm-steps" id="pmSteps">
+        <li class="pm-step"><span class="pm-icon">1</span><span class="pm-name">Coleta · PubMed + Scopus</span><span class="pm-meta">3.842 refs</span></li>
+        <li class="pm-step"><span class="pm-icon">2</span><span class="pm-name">Deduplicação</span><span class="pm-meta">−612</span></li>
+        <li class="pm-step"><span class="pm-icon">3</span><span class="pm-name">Triagem por título</span><span class="pm-meta">1.024</span></li>
+        <li class="pm-step"><span class="pm-icon">4</span><span class="pm-name">Triagem por abstract</span><span class="pm-meta">412</span></li>
+        <li class="pm-step"><span class="pm-icon">5</span><span class="pm-name">Quality Score · CASP</span><span class="pm-meta">412</span></li>
+        <li class="pm-step"><span class="pm-icon">6</span><span class="pm-name">Extração de dados</span><span class="pm-meta">98</span></li>
+        <li class="pm-step"><span class="pm-icon">7</span><span class="pm-name">Síntese narrativa</span><span class="pm-meta">draft</span></li>
+        <li class="pm-step"><span class="pm-icon">8</span><span class="pm-name">Top 40 + relatório</span><span class="pm-meta">PDF</span></li>
+      </ul>
+    </div>
+  </div>
+</header>
+
+<!-- ============== PROBLEMA ============== -->
+<section class="section bg-slate" id="problema">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">O problema</p>
+      <h2 class="section-headline">A revisão de literatura virou <span class="gradient-text">trabalho de garimpo</span></h2>
+      <p class="section-sub">Cada projeto começa com a mesma sequência exaustiva — e meses depois, ainda não saiu do diagnóstico.</p>
+    </div>
+
+    <ol class="timeline">
+      <li class="tl-step reveal" data-delay="1">
+        <span class="num">01</span>
+        <div class="tl-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </div>
+        <h4>Coleta manual</h4>
+        <p>Buscas em 4–6 bases, com strings que você refaz toda semana.</p>
+      </li>
+      <li class="tl-step reveal" data-delay="2">
+        <span class="num">02</span>
+        <div class="tl-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+        </div>
+        <h4>Planilha caos</h4>
+        <p>Excel com 4.000 linhas, abas duplicadas e cores que ninguém entende.</p>
+      </li>
+      <li class="tl-step reveal" data-delay="3">
+        <span class="num">03</span>
+        <div class="tl-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        </div>
+        <h4>Leitura cega</h4>
+        <p>Você lê 600 abstracts pra descobrir que 80% nem fala do seu tema.</p>
+      </li>
+      <li class="tl-step reveal" data-delay="4">
+        <span class="num">04</span>
+        <div class="tl-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        </div>
+        <h4>Critérios frouxos</h4>
+        <p>Sem rubrica, cada paper recebe um peso diferente — e o orientador percebe.</p>
+      </li>
+      <li class="tl-step reveal" data-delay="5">
+        <span class="num">05</span>
+        <div class="tl-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <h4>3 meses depois</h4>
+        <p>O cronograma virou ficção e você ainda não escreveu uma linha do capítulo 2.</p>
+      </li>
+    </ol>
+
+    <p class="transition-quote reveal">"Eu queria pesquisar. Estava virando bibliotecária com prazo de mestrado."</p>
+  </div>
+</section>
+
+<!-- ============== COMO FUNCIONA ============== -->
+<section class="section" id="como-funciona">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">Como funciona</p>
+      <h2 class="section-headline">Um pipeline de 8 etapas, <span class="gradient-text">do tema ao Top 40</span></h2>
+      <p class="section-sub">Você define a pergunta. A Vicky executa o resto — e mostra cada decisão para você auditar.</p>
+    </div>
+
+    <div class="pipeline-grid">
+      <article class="step-card reveal" data-delay="1">
+        <span class="step-num">1</span>
+        <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        <h4>Briefing inteligente</h4>
+        <p>Conversa de 4 minutos para fixar pergunta, escopo, idiomas e janela temporal.</p>
+      </article>
+      <article class="step-card reveal" data-delay="2">
+        <span class="step-num">2</span>
+        <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+        <h4>Coleta multi-base</h4>
+        <p>PubMed, Scopus, Web of Science, SciELO, IEEE, ACM — em paralelo.</p>
+      </article>
+      <article class="step-card reveal" data-delay="3">
+        <span class="step-num">3</span>
+        <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+        <h4>Deduplicação semântica</h4>
+        <p>Não só DOI: detecta o mesmo paper em pré-print, anais e revista.</p>
+      </article>
+      <article class="step-card reveal" data-delay="4">
+        <span class="step-num">4</span>
+        <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <h4>Triagem em duas camadas</h4>
+        <p>Título + abstract com critérios PICO/PECO declarados — você revisa os "talvez".</p>
+      </article>
+      <article class="step-card reveal" data-delay="5">
+        <span class="step-num">5</span>
+        <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <h4>Quality Score auditável</h4>
+        <p>Rubrica baseada em CASP/JBI. Toda nota vem com a frase que a justifica.</p>
+      </article>
+      <article class="step-card reveal" data-delay="6">
+        <span class="step-num">6</span>
+        <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <h4>Extração estruturada</h4>
+        <p>População, intervenção, desfecho, tamanho amostral — em colunas, não em prosa.</p>
+      </article>
+      <article class="step-card reveal" data-delay="7">
+        <span class="step-num">7</span>
+        <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <h4>Síntese narrativa</h4>
+        <p>Rascunho do capítulo de revisão, com citações já no formato do seu programa.</p>
+      </article>
+      <article class="step-card reveal" data-delay="8">
+        <span class="step-num">8</span>
+        <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <h4>Entregáveis prontos</h4>
+        <p>Top 40 em PDF, planilha CSV, BibTeX e diagrama PRISMA — em 1 clique.</p>
+      </article>
+    </div>
+
+    <div class="pillars reveal">
+      <h3>Quatro pilares por trás de cada relatório</h3>
+      <div class="pillars-grid">
+        <div class="pillar"><div class="name">RIGOR</div><div class="desc">Critérios PICO/PECO declarados antes da busca, não depois.</div></div>
+        <div class="pillar"><div class="name">RASTRO</div><div class="desc">Cada decisão tem timestamp, fonte e citação literal.</div></div>
+        <div class="pillar"><div class="name">REPLICÁVEL</div><div class="desc">Exporte o protocolo. Outro grupo refaz em horas.</div></div>
+        <div class="pillar"><div class="name">REVISÃO HUMANA</div><div class="desc">Você é o último a dizer "sim" — e isso fica registrado.</div></div>
+      </div>
+      <p class="footer">Em métodos: a Vicky acelera, mas não decide por você.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============== PERSONAS ============== -->
+<section class="section bg-slate" id="personas">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">Para quem</p>
+      <h2 class="section-headline">Pesquisa séria, em <span class="gradient-text">três contextos</span></h2>
+      <p class="section-sub">Mestrandos, grupos de pesquisa, e times de inovação que precisam de evidência antes de decidir.</p>
+    </div>
+
+    <div class="persona-grid">
+      <article class="persona-card reveal" data-delay="1">
+        <div class="persona-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        </div>
+        <h3>Mestrandos &amp; doutorandos</h3>
+        <blockquote class="persona-quote">"Tinha 6 meses pra entregar o capítulo 2. A Vicky me devolveu 4."</blockquote>
+        <p class="persona-meta">Camila L. · Mestrado em Saúde Pública · USP</p>
+        <ul class="persona-list">
+          <li>Top 40 com Quality Score em 48h</li>
+          <li>PRISMA pronto pra anexar na dissertação</li>
+          <li>BibTeX e ABNT direto no Zotero</li>
+        </ul>
+      </article>
+
+      <article class="persona-card featured reveal" data-delay="2">
+        <span class="persona-badge">Mais popular</span>
+        <div class="persona-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <h3>Grupos de pesquisa</h3>
+        <blockquote class="persona-quote">"Substituiu 3 bolsistas dedicados a triagem. Eles voltaram a fazer ciência."</blockquote>
+        <p class="persona-meta">Prof. Marcos R. · Lab de Cardiologia Clínica · UNICAMP</p>
+        <ul class="persona-list">
+          <li>Workspace com até 25 pesquisadores</li>
+          <li>Protocolos versionados e replicáveis</li>
+          <li>Dashboard de progresso por projeto</li>
+        </ul>
+      </article>
+
+      <article class="persona-card reveal" data-delay="3">
+        <div class="persona-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/><circle cx="12" cy="12" r="9"/></svg>
+        </div>
+        <h3>Inovação &amp; R&amp;D</h3>
+        <blockquote class="persona-quote">"Antes de investir R$ 8M, precisávamos do estado da arte. Veio em uma semana."</blockquote>
+        <p class="persona-meta">Juliana P. · Head of R&amp;D · Startup HealthTech</p>
+        <ul class="persona-list">
+          <li>Relatórios executivos com fontes auditáveis</li>
+          <li>Monitoramento contínuo de novas publicações</li>
+          <li>NDA enterprise + dados em residência BR</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============== PRODUTO ============== -->
+<section class="section bg-dark" id="produto">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label on-dark">Produto</p>
+      <h2 class="section-headline on-dark">Você vê <span class="gradient-text">tudo</span> que a Vicky decidiu</h2>
+      <p class="section-sub on-dark">Três telas, um produto. Pipeline em tempo real, Quality Score por paper, e o Top 40 que vai pro seu PDF.</p>
+    </div>
+
+    <div class="tabs reveal" role="tablist">
+      <button class="tab active" role="tab" aria-selected="true" data-tab="1">Pipeline ao vivo</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="2">Quality Score</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="3">Top 40 final</button>
+    </div>
+
+    <div class="tab-panels reveal" data-delay="1">
+      <!-- Panel 1 -->
+      <div class="tab-panel active" data-panel="1" role="tabpanel">
+        <div class="laptop-frame">
+          <div class="app-window">
+            <div class="app-banner">
+              <div class="left">
+                <span class="pm-spinner" aria-hidden="true"></span>
+                <span>Processando · Hipertensão + IA · 3.842 referências</span>
+              </div>
+              <div class="right"><span class="pct">56%</span> · ETA 18min</div>
+            </div>
+            <ul class="job-list">
+              <li class="done"><span class="ji">✓</span><span>Coleta · PubMed (1.842) + Scopus (2.000)</span><span class="meta">3.842 refs</span><span class="duration">2m 14s</span></li>
+              <li class="done"><span class="ji">✓</span><span>Deduplicação semântica</span><span class="meta">−612 dups</span><span class="duration">38s</span></li>
+              <li class="done"><span class="ji">✓</span><span>Triagem por título · gpt-4 + rubrica</span><span class="meta">3.230 → 1.024</span><span class="duration">4m 02s</span></li>
+              <li class="running"><span class="ji"></span><span>Triagem por abstract · em andamento</span><span class="meta">782 / 1.024</span><span class="duration">running…</span></li>
+              <li><span class="ji">5</span><span>Quality Score · CASP / JBI</span><span class="meta">aguardando</span><span class="duration">—</span></li>
+              <li><span class="ji">6</span><span>Extração estruturada</span><span class="meta">aguardando</span><span class="duration">—</span></li>
+              <li><span class="ji">7</span><span>Síntese narrativa</span><span class="meta">aguardando</span><span class="duration">—</span></li>
+              <li><span class="ji">8</span><span>Entregáveis · PDF + CSV + BibTeX</span><span class="meta">aguardando</span><span class="duration">—</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 2 -->
+      <div class="tab-panel" data-panel="2" role="tabpanel">
+        <div class="laptop-frame">
+          <div class="app-window">
+            <div class="qs-card">
+              <div class="qs-meta">
+                <div class="journal">JAMA Cardiology · 2024 · DOI 10.1001/…</div>
+                <h4>Machine-learning models for early detection of resistant hypertension in primary care: a multicenter validation study</h4>
+                <div class="authors">Silva, R.; Tanaka, M.; Oliveira, P.; et al. · n=12.482</div>
+                <div class="qs-bars">
+                  <div class="qs-bar"><span class="lbl">Desenho do estudo</span><div class="track"><div class="fill" style="width:92%"></div></div><span class="val">9.2</span></div>
+                  <div class="qs-bar"><span class="lbl">Tamanho amostral</span><div class="track"><div class="fill" style="width:88%"></div></div><span class="val">8.8</span></div>
+                  <div class="qs-bar"><span class="lbl">Validação externa</span><div class="track"><div class="fill" style="width:74%"></div></div><span class="val">7.4</span></div>
+                  <div class="qs-bar"><span class="lbl">Reprodutibilidade</span><div class="track"><div class="fill" style="width:61%"></div></div><span class="val">6.1</span></div>
+                  <div class="qs-bar"><span class="lbl">Conflitos declarados</span><div class="track"><div class="fill" style="width:95%"></div></div><span class="val">9.5</span></div>
+                </div>
+              </div>
+              <div class="qs-score">
+                <div class="label">Quality Score</div>
+                <div class="val">8.4<small>/10</small></div>
+                <div class="desc">Top 6% da amostra. Recomendado para o capítulo central.</div>
+                <div class="qs-tags">
+                  <span class="qs-tag ok">peer-reviewed</span>
+                  <span class="qs-tag ok">multicenter</span>
+                  <span class="qs-tag ok">code shared</span>
+                  <span class="qs-tag bad">no preregistration</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 3 -->
+      <div class="tab-panel" data-panel="3" role="tabpanel">
+        <div class="laptop-frame">
+          <div class="app-window">
+            <div class="top40">
+              <h4>Top 40 · Hipertensão + IA · ordenado por Quality Score</h4>
+              <div class="top40-list">
+                <div class="top40-row">
+                  <span class="top40-pos">01</span>
+                  <span class="score-pill violet">9.4</span>
+                  <span class="top40-title">Deep learning for ambulatory blood pressure phenotyping at scale<span class="meta">Nature Medicine · 2024 · n=48.119</span></span>
+                  <a class="top40-link" href="#">abrir</a>
+                </div>
+                <div class="top40-row">
+                  <span class="top40-pos">02</span>
+                  <span class="score-pill violet">9.1</span>
+                  <span class="top40-title">Federated ML for resistant hypertension across 14 centers<span class="meta">JAMA Cardiology · 2024 · n=22.014</span></span>
+                  <a class="top40-link" href="#">abrir</a>
+                </div>
+                <div class="top40-row">
+                  <span class="top40-pos">03</span>
+                  <span class="score-pill emerald">8.7</span>
+                  <span class="top40-title">Explainable risk stratification in chronic hypertension<span class="meta">The Lancet Digital Health · 2023 · n=18.402</span></span>
+                  <a class="top40-link" href="#">abrir</a>
+                </div>
+                <div class="top40-row">
+                  <span class="top40-pos">04</span>
+                  <span class="score-pill emerald">8.4</span>
+                  <span class="top40-title">ML models for early detection of resistant hypertension in primary care<span class="meta">JAMA Cardiology · 2024 · n=12.482</span></span>
+                  <a class="top40-link" href="#">abrir</a>
+                </div>
+                <div class="top40-row">
+                  <span class="top40-pos">05</span>
+                  <span class="score-pill emerald">8.2</span>
+                  <span class="top40-title">Wearable-derived BP variability as a predictor of stroke<span class="meta">Circulation · 2023 · n=9.840</span></span>
+                  <a class="top40-link" href="#">abrir</a>
+                </div>
+                <div class="top40-row">
+                  <span class="top40-pos">06</span>
+                  <span class="score-pill amber">7.6</span>
+                  <span class="top40-title">Causal inference frameworks for hypertension treatment effects<span class="meta">European Heart Journal · 2023 · n=6.114</span></span>
+                  <a class="top40-link" href="#">abrir</a>
+                </div>
+              </div>
+              <div class="top40-fade" aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="product-note reveal">Cada nota vem com a frase do paper que a justifica. Você concorda — ou ajusta com 1 clique.</p>
+  </div>
+</section>
+
+<!-- ============== NÚMEROS ============== -->
+<section class="section bg-brand" id="numeros">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label on-dark" style="color:rgba(255,255,255,0.85)">Resultados</p>
+      <h2 class="section-headline on-dark">Os números que importam</h2>
+      <p class="section-sub on-dark" style="color:rgba(255,255,255,0.85)">Média dos projetos concluídos com a Vicky no último trimestre.</p>
+    </div>
+
+    <div class="numbers-grid">
+      <div class="number-card reveal" data-delay="1">
+        <div class="num"><span class="counter tabular" data-to="83" data-suffix="%">0%</span></div>
+        <div class="lbl">Tempo economizado</div>
+        <div class="sub">vs. processo manual de revisão sistemática</div>
+      </div>
+      <div class="number-card reveal" data-delay="2">
+        <div class="num"><span class="counter tabular" data-to="48" data-suffix="h">0h</span></div>
+        <div class="lbl">Da pergunta ao Top 40</div>
+        <div class="sub">média no plano Pesquisador, com até 5.000 refs</div>
+      </div>
+      <div class="number-card reveal" data-delay="3">
+        <div class="num"><span class="counter tabular" data-to="94" data-suffix="%">0%</span></div>
+        <div class="lbl">Concordância com revisor humano</div>
+        <div class="sub">benchmark interno · 12 revisões sistemáticas</div>
+      </div>
+      <div class="number-card reveal" data-delay="4">
+        <div class="num"><span class="counter tabular" data-to="2300" data-suffix="+">0+</span></div>
+        <div class="lbl">Pesquisadores ativos</div>
+        <div class="sub">USP, UNICAMP, UFRJ, FGV, Insper e mais</div>
+      </div>
+      <div class="number-card reveal" data-delay="5">
+        <div class="num"><span class="counter tabular" data-to="186" data-suffix="">0</span></div>
+        <div class="lbl">Dissertações e teses defendidas</div>
+        <div class="sub">com revisão de literatura feita pela Vicky</div>
+      </div>
+      <div class="number-card reveal" data-delay="6">
+        <div class="num"><span class="counter tabular" data-to="9" data-suffix="/10">0/10</span></div>
+        <div class="lbl">NPS dos orientadores</div>
+        <div class="sub">"finalmente posso cobrar prazo de novo"</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== TESTIMONIALS ============== -->
+<section class="section" id="depoimentos">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">Quem usa</p>
+      <h2 class="section-headline">Pesquisadores que <span class="gradient-text">recuperaram o tempo</span></h2>
+      <p class="section-sub">Mestrandos, doutorandos e laboratórios contando o que mudou.</p>
+    </div>
+
+    <div class="testi-grid">
+      <article class="testi reveal" data-delay="1">
+        <div class="stars">★★★★★</div>
+        <blockquote>"Quando entreguei o capítulo 2 com PRISMA anexado, meu orientador perguntou se eu tinha contratado alguém. Tinha — a Vicky."</blockquote>
+        <div class="testi-author">
+          <div class="av">CL</div>
+          <div>
+            <div class="name">Camila Lima</div>
+            <div class="role">Mestranda · Saúde Pública · USP</div>
+          </div>
+        </div>
+      </article>
+      <article class="testi reveal" data-delay="2">
+        <div class="stars">★★★★★</div>
+        <blockquote>"O Quality Score economizou três reuniões de orientação por mês. A gente discute conteúdo, não mais 'qual paper entra'."</blockquote>
+        <div class="testi-author">
+          <div class="av">MR</div>
+          <div>
+            <div class="name">Prof. Marcos Rocha</div>
+            <div class="role">Cardiologia Clínica · UNICAMP</div>
+          </div>
+        </div>
+      </article>
+      <article class="testi reveal" data-delay="3">
+        <div class="stars">★★★★★</div>
+        <blockquote>"Precisávamos do estado da arte antes de um investimento de R$ 8M. A Vicky entregou em 6 dias um relatório auditável que o conselho aprovou."</blockquote>
+        <div class="testi-author">
+          <div class="av">JP</div>
+          <div>
+            <div class="name">Juliana Paiva</div>
+            <div class="role">Head of R&amp;D · HealthTech</div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="logos reveal">
+      <div class="label">Confiada por pesquisadores em</div>
+      <div class="logos-row">
+        <span class="uni-logo">USP</span>
+        <span class="uni-logo">UNICAMP</span>
+        <span class="uni-logo">UFRJ</span>
+        <span class="uni-logo">UFMG</span>
+        <span class="uni-logo">FGV</span>
+        <span class="uni-logo">Insper</span>
+        <span class="uni-logo">PUC-Rio</span>
+        <span class="uni-logo">UFSC</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== COMPARATIVO ============== -->
+<section class="section bg-slate" id="comparativo">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">Comparativo</p>
+      <h2 class="section-headline">Vicky vs. <span class="gradient-text">o jeito antigo</span></h2>
+      <p class="section-sub">O que muda quando você troca a planilha pelo pipeline.</p>
+    </div>
+
+    <div class="compare reveal">
+      <div class="head">Etapa</div>
+      <div class="head">Sem Vicky</div>
+      <div class="head with">Com Vicky</div>
+
+      <div class="row-label">Coleta multi-base</div>
+      <div class="cell"><span class="x">×</span><span>Buscas refeitas a cada semana, strings copiadas em Word</span></div>
+      <div class="cell"><span class="v">✓</span><span>6 bases, paralelo, com versionamento da string de busca</span></div>
+
+      <div class="row-label">Deduplicação</div>
+      <div class="cell"><span class="x">×</span><span>Por DOI no Excel — perde pré-prints e anais</span></div>
+      <div class="cell"><span class="v">✓</span><span>Semântica: junta versões do mesmo paper em qualquer formato</span></div>
+
+      <div class="row-label">Triagem</div>
+      <div class="cell"><span class="x">×</span><span>2 revisores humanos, 4–6 semanas, kappa baixo</span></div>
+      <div class="cell"><span class="v">✓</span><span>Rubrica explícita + revisão humana só nos "talvez"</span></div>
+
+      <div class="row-label">Quality Score</div>
+      <div class="cell"><span class="x">×</span><span>"Achei bom" no comentário da célula G47</span></div>
+      <div class="cell"><span class="v">✓</span><span>CASP/JBI com a frase do paper que justifica cada nota</span></div>
+
+      <div class="row-label">Diagrama PRISMA</div>
+      <div class="cell"><span class="x">×</span><span>Desenhado no PowerPoint na véspera da defesa</span></div>
+      <div class="cell"><span class="v">✓</span><span>Gerado automaticamente, exportável em SVG e PDF</span></div>
+
+      <div class="row-label">Tempo total</div>
+      <div class="cell"><span class="x">×</span><span>3 a 6 meses, 2–4 pessoas dedicadas</span></div>
+      <div class="cell"><span class="v">✓</span><span>48–72h, 1 pesquisador no controle</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== PRICING ============== -->
+<section class="section" id="planos">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">Planos</p>
+      <h2 class="section-headline">Comece grátis. <span class="gradient-text">Cresça por projeto.</span></h2>
+      <p class="section-sub">Sem cartão para testar. Sem multa para sair. Desconto para instituições de ensino.</p>
+    </div>
+
+    <div class="price-grid">
+      <article class="price reveal" data-delay="1">
+        <h3>Estudante</h3>
+        <p class="for">Para 1 pesquisador, 1 projeto ativo</p>
+        <div class="amt">R$ 0<small>/mês</small></div>
+        <div class="divider"></div>
+        <ul>
+          <li>Até 500 referências por revisão</li>
+          <li>Top 20 com Quality Score</li>
+          <li>Exportação em PDF e BibTeX</li>
+          <li class="dim">Diagrama PRISMA premium</li>
+          <li class="dim">Workspace colaborativo</li>
+        </ul>
+        <a class="btn btn-outline btn-block" href="#cta">Começar grátis</a>
+      </article>
+
+      <article class="price featured reveal" data-delay="2">
+        <span class="price-badge">Mais escolhido</span>
+        <h3>Pesquisador</h3>
+        <p class="for">Para mestrandos, doutorandos e profissionais</p>
+        <div class="amt">R$ 89<small>/mês</small></div>
+        <div class="divider"></div>
+        <ul>
+          <li>Até 5.000 referências por revisão</li>
+          <li>Top 40 + síntese narrativa</li>
+          <li>Diagrama PRISMA editável</li>
+          <li>Integração Zotero, Mendeley, ABNT</li>
+          <li>Suporte prioritário em 4h úteis</li>
+        </ul>
+        <a class="btn btn-primary btn-block" href="#cta">Assinar Pesquisador</a>
+      </article>
+
+      <article class="price reveal" data-delay="3">
+        <h3>Laboratório</h3>
+        <p class="for">Grupos de pesquisa e times de R&amp;D</p>
+        <div class="amt">R$ 449<small>/mês</small></div>
+        <div class="divider"></div>
+        <ul>
+          <li>Referências ilimitadas</li>
+          <li>Até 25 assentos no workspace</li>
+          <li>Monitoramento contínuo de novos papers</li>
+          <li>Protocolos versionados e auditáveis</li>
+          <li>NDA enterprise + dados em residência BR</li>
+        </ul>
+        <a class="btn btn-outline btn-block" href="#cta">Falar com vendas</a>
+      </article>
+    </div>
+
+    <p class="price-notes reveal">
+      Bolsista CAPES/CNPq tem 50% no plano Pesquisador. Universidades e institutos: peça uma cotação por volume de assentos.
+    </p>
+  </div>
+</section>
+
+<!-- ============== FAQ ============== -->
+<section class="section bg-slate" id="faq">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">FAQ</p>
+      <h2 class="section-headline">Perguntas que <span class="gradient-text">sempre aparecem</span></h2>
+      <p class="section-sub">Se a sua não estiver aqui, escreva pra gente — respondemos em horas.</p>
+    </div>
+
+    <div class="faq reveal">
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>A Vicky escreve a revisão por mim?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">Não. A Vicky executa coleta, deduplicação, triagem e Quality Score, e entrega um rascunho de síntese narrativa. A redação final, a discussão e o posicionamento crítico são — e devem ser — seus. Toda decisão automática vem com a citação literal que a justifica, então você revisa o raciocínio, não fica refém dele.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Isso conta como plágio ou má-conduta acadêmica?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">Não. A Vicky é uma ferramenta de assistência metodológica — equivalente a usar Rayyan, Covidence ou um software de gerenciamento de referências. Você divulga o uso na seção de métodos, anexa o protocolo gerado e o diagrama PRISMA, e o trabalho fica mais auditável, não menos.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Quais bases vocês cobrem?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">PubMed, Scopus, Web of Science, SciELO, IEEE Xplore, ACM Digital Library, Google Scholar e Embase (no plano Laboratório). Adicionamos novas bases por demanda — mande a sua.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Funciona pra outras áreas além de saúde?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">Sim. A rubrica de Quality Score se adapta: CASP/JBI para saúde, frameworks de engenharia de software para CC, PRISMA-ScR para revisões de escopo, e critérios customizáveis para humanidades. Já temos projetos em educação, direito, administração, agronomia e ciência da computação.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Meus dados de pesquisa ficam seguros?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">Sim. Dados em residência no Brasil (LGPD), criptografia em trânsito e repouso, isolamento por workspace e — no plano Laboratório — opção de não usar seus dados para treinamento. Temos NDA enterprise e DPA pronto pra assinar.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Posso cancelar quando quiser?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">Sim, em 1 clique nas configurações. Sem multa, sem ligação de retenção, sem "tem certeza que quer perder seus benefícios". Você leva consigo todos os relatórios, planilhas e protocolos exportados.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== FINAL CTA ============== -->
+<section class="final-cta" id="cta">
+  <div class="hero-bg" aria-hidden="true">
+    <div class="hero-mesh-1"></div>
+    <div class="hero-mesh-2"></div>
+    <div class="hero-grid"></div>
+  </div>
+  <div class="container">
+    <h2 class="reveal">Devolva 4 meses <br/><span class="gradient-text">à sua pesquisa.</span></h2>
+    <p class="sub reveal" data-delay="1">Comece grátis hoje. Em 48 horas você tem o seu primeiro Top 40, com Quality Score e PRISMA. Sem cartão, sem ligação.</p>
+    <div class="hero-cta reveal" data-delay="2" style="justify-content:center">
+      <a class="btn btn-primary btn-xl" href="#signup">Começar grátis →</a>
+      <a class="btn btn-ghost-light btn-large" href="#demo">Agendar demo de 15min</a>
+    </div>
+    <div class="proof reveal" data-delay="3">
+      <div class="avatar-stack" aria-hidden="true">
+        <div class="avatar">CL</div>
+        <div class="avatar v2">MR</div>
+        <div class="avatar v3">JP</div>
+        <div class="avatar v4">AS</div>
+      </div>
+      <span>Junte-se a 2.300+ pesquisadores · ★★★★★ 4.9/5</span>
+    </div>
+    <p class="reassure reveal" data-delay="4">14 dias grátis · sem cartão · LGPD-ready · cancela em 1 clique</p>
+  </div>
+</section>
+
+<!-- ============== FOOTER ============== -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="nav-brand" href="#top">
+          <span class="nav-logo" aria-hidden="true">V</span>
+          <span class="nav-wordmark">Vicky</span>
+        </a>
+        <p>Pesquisa científica, sem o trabalho braçal. Pipeline auditável de revisão de literatura, do briefing ao Top 40.</p>
+        <div class="socials">
+          <a href="#" aria-label="LinkedIn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 2h-17A1.5 1.5 0 0 0 2 3.5v17A1.5 1.5 0 0 0 3.5 22h17a1.5 1.5 0 0 0 1.5-1.5v-17A1.5 1.5 0 0 0 20.5 2zM8 19H5v-9h3zM6.5 8.25A1.75 1.75 0 1 1 8.3 6.5a1.78 1.78 0 0 1-1.8 1.75zM19 19h-3v-4.74c0-1.42-.6-1.93-1.38-1.93A1.74 1.74 0 0 0 13 14.19a.66.66 0 0 0 0 .14V19h-3v-9h2.9v1.3a3.11 3.11 0 0 1 2.7-1.4c1.55 0 3.36.86 3.36 3.66z"/></svg></a>
+          <a href="#" aria-label="X"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+          <a href="#" aria-label="GitHub"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0a12 12 0 0 0-3.79 23.4c.6.1.82-.26.82-.58v-2.16c-3.34.72-4.04-1.42-4.04-1.42-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .1-.78.42-1.31.76-1.61-2.66-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.11-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.69.83.58A12 12 0 0 0 12 0z"/></svg></a>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h5>Produto</h5>
+        <ul>
+          <li><a href="#como-funciona">Como funciona</a></li>
+          <li><a href="#produto">Telas do produto</a></li>
+          <li><a href="#planos">Planos</a></li>
+          <li><a href="#cta">Demo</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Recursos</h5>
+        <ul>
+          <li><a href="#">Templates PRISMA</a></li>
+          <li><a href="#">Guia de revisão sistemática</a></li>
+          <li><a href="#">Blog &amp; cases</a></li>
+          <li><a href="#">Mudanças (changelog)</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Empresa</h5>
+        <ul>
+          <li><a href="#">Sobre</a></li>
+          <li><a href="#">Privacidade &amp; LGPD</a></li>
+          <li><a href="#">Termos</a></li>
+          <li><a href="#">Contato</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Vicky Tecnologia · Feita no Brasil 🇧🇷</span>
+      <span>contato@vicky.science</span>
+    </div>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

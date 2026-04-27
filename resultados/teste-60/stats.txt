@@ -1,0 +1,7 @@
+articles: 60
+analyzed: 60
+included: 45
+excluded: 15
+uncertain: 0
+double_checked: 15
+disagreements: 9

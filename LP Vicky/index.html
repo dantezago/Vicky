@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vicky — Iniciação Científica em Medicina com IA</title>
+<meta name="description" content="Organize sua iniciação científica em medicina com apoio de IA. Busca em PubMed, SciELO e Google Acadêmico, com artigos ranqueados por Quality Score." />
+<meta property="og:title" content="Vicky — Comece sua iniciação científica com artigos certos para revisar" />
+<meta property="og:description" content="Do tema à lista ranqueada: busca em PubMed, SciELO e Google Acadêmico, com a quantidade de artigos que você escolher e Quality Score por artigo." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles-v2.css" />
+</head>
+<body>
+
+<!-- ============== NAV ============== -->
+<nav class="nav" aria-label="Principal">
+  <div class="container nav-inner">
+    <a class="nav-brand" href="#top" aria-label="Vicky — início">
+      <span class="nav-logo" aria-hidden="true">V</span>
+      <span class="nav-wordmark">Vicky</span>
+    </a>
+    <div class="nav-links" role="menubar">
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#entregas">Entregas</a>
+      <a href="#faq">Dúvidas</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost-pink" href="#login">Entrar</a>
+      <a class="btn btn-primary" href="#cta">Começar grátis</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============== HERO ============== -->
+<header class="hero" id="top">
+  <div class="hero-bg" aria-hidden="true">
+    <div class="hero-mesh-1"></div>
+    <div class="hero-mesh-2"></div>
+    <div class="hero-grid"></div>
+  </div>
+  <div class="container hero-inner">
+    <div>
+      <span class="hero-eyebrow reveal">
+        <span class="live-dot" aria-hidden="true"></span>
+        Para alunos de medicina em iniciação científica
+      </span>
+      <h1 class="reveal" data-delay="1">
+        Comece sua iniciação científica com <span class="gradient-text">artigos certos para revisar</span>
+      </h1>
+      <p class="hero-sub reveal" data-delay="2">
+        Digite seu tema, adicione as observações do projeto e deixe a Vicky buscar em PubMed, SciELO e Google Acadêmico para entregar uma lista ranqueada de artigos científicos.
+      </p>
+      <div class="hero-cta reveal" data-delay="3">
+        <a class="btn btn-primary btn-large" href="#cta">Começar minha pesquisa →</a>
+        <a class="btn btn-ghost-light btn-large" href="#como-funciona">Ver como funciona</a>
+      </div>
+      <p class="hero-microcopy reveal" data-delay="4">Você cria o projeto em poucos passos e começa a revisão com mais direção.</p>
+    </div>
+
+    <!-- Flow mockup -->
+    <div class="flow-mockup reveal" data-delay="2" aria-label="Fluxo do produto">
+      <div class="flow-card">
+        <div class="flow-label"><span class="flow-num">1</span>Tema da pesquisa</div>
+        <div class="flow-value">Uso de inteligência artificial no diagnóstico precoce de câncer de pele</div>
+      </div>
+      <div class="flow-arrow" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="flow-card">
+        <div class="flow-label"><span class="flow-num">2</span>Observações</div>
+        <div class="flow-value">Focar em estudos dos últimos 5 anos, população adulta e aplicações clínicas.</div>
+      </div>
+      <div class="flow-arrow" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="flow-card">
+        <div class="flow-label"><span class="flow-num">3</span>Bases científicas</div>
+        <div class="chips">
+          <span class="flow-chip">PubMed</span>
+          <span class="flow-chip">SciELO</span>
+          <span class="flow-chip">Google Acadêmico</span>
+        </div>
+      </div>
+      <div class="flow-arrow" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="flow-card result">
+        <div class="flow-label"><span class="flow-num">✓</span>Resultado</div>
+        <div class="flow-value">Top 40 artigos ranqueados</div>
+        <div class="flow-meta">Quality Score 0–100 · você escolhe a quantidade</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============== DOR ============== -->
+<section class="section bg-slate" id="dor">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">A dor</p>
+      <h2 class="section-headline">Você tem o tema, mas <span class="gradient-text">ainda não tem uma revisão</span></h2>
+      <p class="section-sub">A maioria dos alunos trava antes de começar: não por falta de vontade, mas porque transformar uma ideia em busca científica exige critério.</p>
+    </div>
+
+    <div class="pain-grid">
+      <article class="pain-card reveal" data-delay="1">
+        <div class="pain-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </div>
+        <h4>As bases parecem infinitas</h4>
+        <p>Você pesquisa no PubMed, SciELO ou Google Acadêmico e encontra dezenas ou centenas de resultados sem saber quais realmente servem para o seu tema.</p>
+      </article>
+      <article class="pain-card reveal" data-delay="2">
+        <div class="pain-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+        </div>
+        <h4>PICO dá insegurança</h4>
+        <p>População, intervenção, comparação e desfecho parecem simples, até chegar a hora de transformar o tema em critérios claros.</p>
+      </article>
+      <article class="pain-card reveal" data-delay="3">
+        <div class="pain-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 9 18l-5-5"/></svg>
+        </div>
+        <h4>O orientador cobra critério</h4>
+        <p>Não basta mandar uma lista de links. Você precisa justificar o caminho da busca e mostrar por que aqueles artigos fazem sentido.</p>
+      </article>
+      <article class="pain-card reveal" data-delay="4">
+        <div class="pain-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <h4>Falta tempo</h4>
+        <p>Entre prova, estágio, liga e rotina da faculdade, triar artigo por artigo vira um gargalo.</p>
+      </article>
+    </div>
+
+    <p class="pain-close reveal">A Vicky organiza o começo da sua revisão para você ganhar tempo e pesquisar com mais direção.</p>
+  </div>
+</section>
+
+<!-- ============== COMO FUNCIONA ============== -->
+<section class="section" id="como-funciona">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">Como funciona</p>
+      <h2 class="section-headline">Do tema à lista ranqueada em um <span class="gradient-text">fluxo simples</span></h2>
+      <p class="section-sub">Você preenche o básico, escolhe as bases científicas e define quantos artigos quer receber. A Vicky organiza a busca e ranqueia os resultados por Quality Score.</p>
+    </div>
+
+    <div class="steps">
+      <article class="step reveal" data-delay="1">
+        <div class="step-head">
+          <div class="step-numlg">1</div>
+          <div class="step-text">
+            <h3>Escreva o tema da sua pesquisa</h3>
+            <p>Comece com uma ideia simples, mesmo que ainda esteja aberta. A Vicky usa esse tema como ponto de partida para estruturar a busca.</p>
+          </div>
+        </div>
+        <div class="step-demo">
+          <div class="field-label">Tema</div>
+          <div class="field-value">Telemedicina no acompanhamento de pacientes com diabetes tipo 2</div>
+        </div>
+      </article>
+
+      <article class="step reveal" data-delay="2">
+        <div class="step-head">
+          <div class="step-numlg">2</div>
+          <div class="step-text">
+            <h3>Adicione observações do projeto</h3>
+            <p>Informe recortes importantes, como população, período, tipo de estudo, objetivo da revisão ou exigências do orientador.</p>
+          </div>
+        </div>
+        <div class="step-demo">
+          <div class="field-label">Observações</div>
+          <div class="field-value">Focar em adultos, estudos clínicos e publicações dos últimos 5 anos.</div>
+          <div class="chips">
+            <span class="demo-chip">População</span>
+            <span class="demo-chip">Período</span>
+            <span class="demo-chip">Tipo de estudo</span>
+            <span class="demo-chip">Objetivo</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="step reveal" data-delay="3">
+        <div class="step-head">
+          <div class="step-numlg">3</div>
+          <div class="step-text">
+            <h3>Escolha as bases e a quantidade de artigos</h3>
+            <p>Selecione PubMed, SciELO e Google Acadêmico, defina quantos artigos quer no resultado final e deixe a Vicky organizar a triagem.</p>
+          </div>
+        </div>
+        <div class="step-demo">
+          <div class="field-label">Bases</div>
+          <div class="chips">
+            <span class="demo-chip solid">PubMed</span>
+            <span class="demo-chip solid">SciELO</span>
+            <span class="demo-chip solid">Google Acadêmico</span>
+          </div>
+          <div class="field-label" style="margin-top:14px;">Quantidade de artigos</div>
+          <div class="size-pick" role="group" aria-label="Quantidade de artigos">
+            <button type="button" class="size-opt">Top 10</button>
+            <button type="button" class="size-opt">Top 20</button>
+            <button type="button" class="size-opt is-active" aria-pressed="true">Top 40</button>
+            <button type="button" class="size-opt">Top 60</button>
+          </div>
+          <div class="demo-result">
+            <span class="label">Lista ranqueada</span>
+            <span class="meta">Quality Score 0–100</span>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============== ENTREGAS ============== -->
+<section class="section bg-slate" id="entregas">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">Entregas</p>
+      <h2 class="section-headline">O que você <span class="gradient-text">recebe no final</span></h2>
+      <p class="section-sub">Uma base organizada para começar sua revisão com critério, sem depender de buscas soltas em várias plataformas.</p>
+    </div>
+
+    <div class="deliv-grid">
+      <article class="deliv-card reveal" data-delay="1">
+        <div class="deliv-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 3v18"/></svg>
+        </div>
+        <div>
+          <h4>Critérios PICO</h4>
+          <p>A Vicky estrutura uma pergunta inicial para orientar a busca e os critérios do projeto.</p>
+        </div>
+      </article>
+      <article class="deliv-card reveal" data-delay="2">
+        <div class="deliv-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </div>
+        <div>
+          <h4>Busca em bases científicas</h4>
+          <p>Busca em PubMed, SciELO e Google Acadêmico, conforme as fontes selecionadas no projeto.</p>
+        </div>
+      </article>
+      <article class="deliv-card reveal" data-delay="3">
+        <div class="deliv-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V10M9 21V4M15 21v-7M21 21V14"/></svg>
+        </div>
+        <div>
+          <h4>Lista ranqueada</h4>
+          <p>Você escolhe quantos artigos quer receber e a Vicky organiza a lista por Quality Score, de 0 a 100.</p>
+        </div>
+      </article>
+      <article class="deliv-card reveal" data-delay="4">
+        <div class="deliv-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+        </div>
+        <div>
+          <h4>Links dos artigos</h4>
+          <p>Clique e abra a fonte para ler os artigos encontrados e avançar na revisão.</p>
+        </div>
+      </article>
+      <article class="deliv-card reveal" data-delay="5">
+        <div class="deliv-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div>
+          <h4>Praticidade na triagem</h4>
+          <p>A Vicky reúne, organiza e ranqueia os artigos para facilitar sua análise inicial.</p>
+        </div>
+      </article>
+      <article class="deliv-card reveal" data-delay="6">
+        <div class="deliv-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+        </div>
+        <div>
+          <h4>Double-check</h4>
+          <p>As exclusões passam por uma segunda verificação para reduzir o risco de descartar artigos importantes.</p>
+        </div>
+      </article>
+    </div>
+
+    <p class="pain-close reveal" style="margin-top:32px;font-style:normal;">A lista ranqueada ajuda você a começar pelos artigos mais promissores, abrir os links e avançar na revisão com mais praticidade.</p>
+
+    <!-- Mini results mock -->
+    <div class="results-mock reveal" data-delay="2" aria-label="Exemplo de lista final">
+      <div class="results-head">
+        <span class="dot" aria-hidden="true"></span>
+        <b>Lista ranqueada</b>
+        <span style="color:rgba(255,255,255,0.5);">· Câncer de pele + IA · Top 40</span>
+      </div>
+      <ul class="results-list">
+        <li class="result-row">
+          <span class="result-pos">01</span>
+          <span class="result-score high">94</span>
+          <span class="result-title">Inteligência artificial no diagnóstico precoce de melanoma</span>
+          <a class="result-link" href="#">Abrir link <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
+        </li>
+        <li class="result-row">
+          <span class="result-pos">02</span>
+          <span class="result-score mid">88</span>
+          <span class="result-title">Aplicações de deep learning em dermatologia clínica</span>
+          <a class="result-link" href="#">Abrir link <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
+        </li>
+        <li class="result-row">
+          <span class="result-pos">03</span>
+          <span class="result-score mid">82</span>
+          <span class="result-title">Validação clínica de triagem de câncer de pele assistida por IA</span>
+          <a class="result-link" href="#">Abrir link <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
+        </li>
+        <li class="result-row">
+          <span class="result-pos">04</span>
+          <span class="result-score ok">76</span>
+          <span class="result-title">Redes convolucionais para análise de imagens dermatoscópicas</span>
+          <a class="result-link" href="#">Abrir link <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============== FAQ ============== -->
+<section class="section" id="faq">
+  <div class="container">
+    <div class="section-head center reveal">
+      <p class="section-label">FAQ</p>
+      <h2 class="section-headline">Dúvidas comuns <span class="gradient-text">antes de começar</span></h2>
+    </div>
+
+    <div class="faq reveal">
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>A Vicky substitui minha análise crítica?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">Não. A Vicky acelera a triagem, organiza os artigos e ajuda você a priorizar os resultados mais relevantes. A análise crítica, a leitura completa e a decisão acadêmica continuam exigindo revisão humana.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Meu orientador pode achar ruim eu usar IA?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">A Vicky deve ser usada como ferramenta de apoio à triagem científica. Ela ajuda a organizar o processo de busca, critérios e priorização dos artigos, deixando o caminho mais claro para discutir com seu orientador.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Preciso saber montar PICO antes de usar?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">Não. Você pode começar apenas com o tema e adicionar observações. A Vicky gera uma estrutura inicial de PICO e critérios para você revisar.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Quais bases a Vicky usa?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">A Vicky pode buscar em PubMed, SciELO e Google Acadêmico/Google Scholar, conforme as fontes selecionadas no projeto.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>A Vicky lê o artigo completo?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">A Vicky analisa principalmente as informações disponíveis na busca, como título, resumo, autores, periódico, ano, DOI e metadados. A leitura completa dos artigos relevantes continua sendo responsabilidade do pesquisador.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Eu consigo abrir os artigos encontrados?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">Sim. A lista final mostra os artigos ranqueados e inclui links para abrir a fonte, revisar o conteúdo e decidir o que entra na sua pesquisa.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Eu posso escolher quantos artigos quero receber?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">Sim. Você define a quantidade desejada para o resultado final. Pode gerar uma lista menor para uma triagem inicial, como Top 10 ou Top 20, ou uma lista maior, como Top 40 ou Top 60, conforme o tamanho do seu projeto.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>A Vicky entrega a revisão pronta?</span><span class="icon" aria-hidden="true">+</span></button>
+        <div class="faq-a"><div class="faq-a-inner">Não. Ela entrega uma triagem organizada e uma lista de artigos priorizados. Isso ajuda você a começar com mais direção, mas não substitui a escrita, a análise crítica e a orientação acadêmica.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== FINAL CTA ============== -->
+<section class="final-cta" id="cta">
+  <div class="hero-bg" aria-hidden="true">
+    <div class="hero-mesh-1"></div>
+    <div class="hero-mesh-2"></div>
+    <div class="hero-grid"></div>
+  </div>
+  <div class="container">
+    <h2 class="reveal">Comece sua iniciação científica com <span class="gradient-text">artigos organizados para revisar</span></h2>
+    <p class="sub reveal" data-delay="1">Digite seu tema, selecione as bases científicas e deixe a Vicky organizar o primeiro caminho da sua revisão.</p>
+    <div class="hero-cta reveal" data-delay="2" style="justify-content:center;display:inline-flex;flex-wrap:wrap;">
+      <a class="btn btn-primary btn-large" href="#signup">Começar minha pesquisa →</a>
+    </div>
+    <p class="micro reveal" data-delay="3">Menos tempo perdido na triagem. Mais clareza para começar.</p>
+  </div>
+</section>
+
+<!-- ============== FOOTER ============== -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        <a class="nav-brand" href="#top" style="margin-bottom:10px;">
+          <span class="nav-logo" aria-hidden="true">V</span>
+          <span class="nav-wordmark">Vicky</span>
+        </a>
+        <p class="footer-tag">Triagem científica assistida por IA para estudantes e pesquisadores.</p>
+      </div>
+      <div class="footer-links">
+        <a href="#login">Entrar</a>
+        <a href="#privacidade">Privacidade</a>
+        <a href="#contato">Contato</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Vicky · Feita no Brasil</div>
+  </div>
+</footer>
+
+<script src="app-v2.js"></script>
+</body>
+</html>

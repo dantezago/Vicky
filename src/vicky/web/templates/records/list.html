@@ -1,0 +1,189 @@
+{% extends "app_layout.html" %}
+{% from "components/status_badge.html" import decision_badge, score_pill %}
+{% from "components/link_button.html" import link_button %}
+{% from "components/empty_state.html" import empty_state %}
+{% from "components/project_status.html" import source_badge %}
+{% block title %}Registros · {{ p.topic|truncate(40) }} · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5"><a href="/projetos/{{ p.id }}" class="hover:text-brand-600 transition">← Projeto #{{ p.id }}</a> · {{ result.total }} artigos</div>{% endblock %}
+{% block page_title %}Registros{% endblock %}
+{% block page_subtitle %}<p class="text-xs text-slate-500 mt-1 line-clamp-1 max-w-3xl">{{ p.topic }}</p>{% endblock %}
+
+{% block content %}
+
+<div class="mb-4">
+  <a href="/projetos/{{ p.id }}" class="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 font-medium">
+    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+    Voltar ao projeto
+  </a>
+</div>
+
+{# ─── Atalhos rápidos por decisão (sempre visíveis) ────────── #}
+<div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-3 mb-4 flex items-center gap-2 flex-wrap">
+  <span class="text-xs font-medium text-slate-600 mr-1">Filtro rápido:</span>
+  {% set quick = [
+    ("",               "Todos",                m.total_articles,           "slate"),
+    ("include_top",    "Top " + p.target_articles|string, m.included_top|default(0), "emerald"),
+    ("below_cutoff",   "Fora do top",          m.below_cutoff|default(0),  "violet"),
+    ("exclude",        "Excluir",              m.excluded,                 "rose"),
+    ("uncertain",      "Incerto",              m.uncertain,                "amber"),
+  ] %}
+  {% for value, label, count, color in quick %}
+    {% set active = filters.decision == value %}
+    <a href="/projetos/{{ p.id }}/registros{% if value %}?decision={{ value }}{% endif %}"
+       onclick="window.scrollTo(0,0)"
+       class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition border
+              {% if active %}bg-{{ color }}-600 border-{{ color }}-600 text-white{% else %}bg-white border-slate-200 text-slate-700 hover:border-{{ color }}-300 hover:bg-{{ color }}-50{% endif %}">
+      <span>{{ label }}</span>
+      <span class="tabular-nums {% if active %}bg-white/25 text-white{% else %}bg-slate-100 text-slate-600{% endif %} rounded-full px-1.5 py-0.5 text-[10px] font-bold">{{ count }}</span>
+    </a>
+  {% endfor %}
+</div>
+
+{# ─── Chips de filtros ativos ──────────────────────────────── #}
+{% set active_filters = [] %}
+{% if filters.q %}{% set _ = active_filters.append(("Busca", filters.q, "q")) %}{% endif %}
+{% if filters.decision %}
+  {% set dec_label = {
+    "include": "Incluir",
+    "exclude": "Excluir",
+    "uncertain": "Incerto",
+    "not_analyzed": "Não analisados",
+    "include_top": "Top " + p.target_articles|string,
+    "below_cutoff": "Fora do top",
+  }.get(filters.decision, filters.decision) %}
+  {% set _ = active_filters.append(("Decisão", dec_label, "decision")) %}
+{% endif %}
+{% if filters.source %}{% set _ = active_filters.append(("Fonte", filters.source, "source")) %}{% endif %}
+{% if filters.year %}{% set _ = active_filters.append(("Ano", filters.year, "year")) %}{% endif %}
+{% if filters.min_score %}{% set _ = active_filters.append(("Score≥", filters.min_score, "min_score")) %}{% endif %}
+
+{% if active_filters %}
+<div class="bg-brand-50 border border-brand-200 rounded-xl p-3 mb-4 flex items-center gap-2 flex-wrap">
+  <span class="text-xs font-semibold text-brand-800 mr-1">🔍 Filtrando por:</span>
+  {% for label, value, key in active_filters %}
+    {% set drop_url = "/projetos/" + p.id|string + "/registros?" %}
+    {% for k, v in filters.items() if v and k != key %}{% set drop_url = drop_url + k + "=" + (v|string) + "&" %}{% endfor %}
+    <a href="{{ drop_url }}" class="inline-flex items-center gap-1.5 rounded-full bg-white border border-brand-300 text-brand-700 px-3 py-1 text-xs font-medium hover:bg-brand-100 transition group">
+      <span class="opacity-70">{{ label }}:</span>
+      <strong>{{ value }}</strong>
+      <svg class="h-3 w-3 opacity-50 group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+    </a>
+  {% endfor %}
+  <a href="/projetos/{{ p.id }}/registros" class="ml-auto inline-flex items-center gap-1 text-xs text-brand-700 hover:text-brand-900 font-medium underline">
+    Limpar todos os filtros
+  </a>
+</div>
+{% endif %}
+
+<form method="get" action="/projetos/{{ p.id }}/registros" class="bg-white rounded-xl border border-slate-200/70 shadow-card p-4 mb-5">
+  <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+    <div class="md:col-span-3">
+      <label class="block text-xs font-medium text-slate-600 mb-1">Buscar</label>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Título, autores, journal, DOI…"
+             class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-xs font-medium text-slate-600 mb-1">Decisão</label>
+      <select name="decision" class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
+        <option value="">Todas</option>
+        <option value="include" {% if filters.decision == "include" %}selected{% endif %}>Incluir</option>
+        <option value="exclude" {% if filters.decision == "exclude" %}selected{% endif %}>Excluir</option>
+        <option value="uncertain" {% if filters.decision == "uncertain" %}selected{% endif %}>Incerto</option>
+        <option value="not_analyzed" {% if filters.decision == "not_analyzed" %}selected{% endif %}>Pendente</option>
+      </select>
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-xs font-medium text-slate-600 mb-1">Fonte</label>
+      <select name="source" class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
+        <option value="">Todas</option>
+        {% for s in source_options %}<option value="{{ s }}" {% if filters.source == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="md:col-span-1">
+      <label class="block text-xs font-medium text-slate-600 mb-1">Ano</label>
+      <select name="year" class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
+        <option value="">Todos</option>
+        {% for y in year_options %}<option value="{{ y }}" {% if filters.year == y %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="md:col-span-1">
+      <label class="block text-xs font-medium text-slate-600 mb-1">Score≥</label>
+      <input type="number" name="min_score" value="{{ filters.min_score or '' }}" min="0" max="100"
+             class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-xs font-medium text-slate-600 mb-1">Ordenar</label>
+      <select name="sort" class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
+        <option value="score_desc" {% if filters.sort == "score_desc" %}selected{% endif %}>Score (maior)</option>
+        <option value="year_desc" {% if filters.sort == "year_desc" %}selected{% endif %}>Ano (recente)</option>
+        <option value="title_asc" {% if filters.sort == "title_asc" %}selected{% endif %}>Título A-Z</option>
+      </select>
+    </div>
+    <div class="md:col-span-1">
+      <button type="submit" class="w-full rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3 py-2 transition">Filtrar</button>
+    </div>
+  </div>
+</form>
+
+<div class="bg-white rounded-xl border border-slate-200/70 shadow-card overflow-hidden">
+  {% if result.items %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
+        <tr>
+          <th class="px-4 py-3 text-left w-16">Score</th>
+          <th class="px-4 py-3 text-left w-20">Fonte</th>
+          <th class="px-4 py-3 text-left w-16">Ano</th>
+          <th class="px-4 py-3 text-left">Título / Autores</th>
+          <th class="px-4 py-3 text-left w-28">Decisão</th>
+          <th class="px-4 py-3 text-right w-32">Ações</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for r in result.items %}
+        <tr class="hover:bg-slate-50/60 transition">
+          <td class="px-4 py-3 align-top">{{ score_pill(r.quality_score) }}</td>
+          <td class="px-4 py-3 align-top">{{ source_badge(r.source) }}</td>
+          <td class="px-4 py-3 align-top text-slate-700 tabular-nums">{{ r.year or "—" }}</td>
+          <td class="px-4 py-3 align-top">
+            <a href="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}" class="block text-slate-900 font-medium hover:text-brand-700 line-clamp-2">{{ r.title }}</a>
+            {% if r.authors %}<div class="text-xs text-slate-500 mt-0.5 line-clamp-1">{{ r.authors }}</div>{% endif %}
+            {% if r.journal %}<div class="text-xs text-slate-400 mt-0.5 italic line-clamp-1">{{ r.journal }}</div>{% endif %}
+          </td>
+          <td class="px-4 py-3 align-top">{{ decision_badge(r.decision, in_top_n=r.in_top_n) }}{% if r.user_decision %}<div class="text-[10px] text-violet-600 mt-0.5">(sua revisão)</div>{% endif %}</td>
+          <td class="px-4 py-3 align-top">
+            <div class="flex items-center justify-end gap-2">
+              {{ link_button(r.external_url, "Abrir", small=true) }}
+              <a href="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}" class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition font-medium">Detalhes</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-sm text-slate-600">
+    <div>Mostrando <span class="font-medium text-slate-900">{{ (result.page - 1) * result.per_page + 1 }}</span>–<span class="font-medium text-slate-900">{{ [(result.page) * result.per_page, result.total]|min }}</span> de <span class="font-medium text-slate-900">{{ result.total }}</span></div>
+    <div class="flex items-center gap-1">
+      {% set base_query = "" %}{% for k, v in filters.items() if v %}{% set base_query = base_query + "&" + k + "=" + (v|string) %}{% endfor %}
+      {% if result.page > 1 %}<a href="?page=1{{ base_query }}" class="px-2 py-1.5 rounded-md hover:bg-slate-100 transition" title="Primeira página">«</a>{% else %}<span class="px-2 py-1.5 text-slate-300">«</span>{% endif %}
+      {% if result.page > 1 %}<a href="?page={{ result.page - 1 }}{{ base_query }}" class="px-3 py-1.5 rounded-md hover:bg-slate-100 transition">‹ Anterior</a>{% else %}<span class="px-3 py-1.5 text-slate-300">‹</span>{% endif %}
+      <form method="get" action="" class="inline-flex items-center gap-1 px-2">
+        {% for k, v in filters.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+        <span class="text-xs text-slate-500">Página</span>
+        <input type="number" name="page" value="{{ result.page }}" min="1" max="{{ result.total_pages }}"
+               onchange="this.form.submit()"
+               class="w-14 rounded-md border-slate-300 text-xs text-center px-1 py-0.5 focus:border-brand-500 focus:ring-brand-500 tabular-nums">
+        <span class="text-xs text-slate-500">/ {{ result.total_pages }}</span>
+      </form>
+      {% if result.page < result.total_pages %}<a href="?page={{ result.page + 1 }}{{ base_query }}" class="px-3 py-1.5 rounded-md hover:bg-slate-100 transition">Próxima ›</a>{% else %}<span class="px-3 py-1.5 text-slate-300">›</span>{% endif %}
+      {% if result.page < result.total_pages %}<a href="?page={{ result.total_pages }}{{ base_query }}" class="px-2 py-1.5 rounded-md hover:bg-slate-100 transition" title="Última página">»</a>{% else %}<span class="px-2 py-1.5 text-slate-300">»</span>{% endif %}
+    </div>
+  </div>
+  {% else %}
+    {{ empty_state(title="Nenhum registro encontrado", message="Tente ajustar os filtros.") }}
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Criar conta · Vicky{% endblock %}
+{% block body %}
+<div class="min-h-screen flex items-center justify-center px-4 py-12 relative overflow-hidden"
+     style="background:#0a0414;color:#fff;">
+  <div class="pointer-events-none absolute inset-0 -z-10">
+    <div class="absolute -top-1/4 -right-1/4 w-3/4 h-3/4"
+         style="background:radial-gradient(closest-side,rgba(236,72,153,0.32),rgba(236,72,153,0) 70%);filter:blur(20px);"></div>
+    <div class="absolute -bottom-1/4 -left-1/4 w-3/4 h-3/4"
+         style="background:radial-gradient(closest-side,rgba(139,92,246,0.22),rgba(139,92,246,0) 70%);filter:blur(20px);"></div>
+    <div class="absolute inset-0"
+         style="background-image:linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px),linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px);background-size:40px 40px;-webkit-mask-image:radial-gradient(ellipse at 50% 40%, #000 30%, transparent 80%);mask-image:radial-gradient(ellipse at 50% 40%, #000 30%, transparent 80%);"></div>
+  </div>
+
+  <div class="w-full max-w-md vk-reveal">
+    <div class="text-center mb-8">
+      <a href="/" class="inline-flex items-center gap-2.5 mb-7 group">
+        <span class="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-brand-md group-hover:scale-105 transition-transform"
+              style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:20px;box-shadow:0 8px 22px -4px rgba(236,72,153,0.5),inset 0 1px 0 rgba(255,255,255,0.25);">V</span>
+        <span class="font-display text-[22px] font-bold tracking-tightest text-white">Vicky</span>
+      </a>
+      <div class="vk-eyebrow dark mb-3 justify-center" style="display:inline-flex;color:#f9a8d4;">
+        <span class="vk-live-dot"></span>
+        Crie sua conta
+      </div>
+      <h1 class="font-display text-3xl font-bold tracking-tightest leading-[1.2]">Comece a triar <span class="vk-gradient-text">artigos em minutos</span></h1>
+      <p class="mt-2 text-sm text-slate-400">Do tema à lista ranqueada — sem precisar instalar nada</p>
+    </div>
+
+    <div class="rounded-2xl p-7 backdrop-blur"
+         style="background:rgba(255,255,255,0.04);border:1px solid rgba(236,72,153,0.22);box-shadow:0 30px 70px -20px rgba(236,72,153,0.32),0 12px 36px -10px rgba(0,0,0,0.55);">
+      {% if error %}
+      <div class="mb-5 rounded-lg px-4 py-3 text-sm"
+           style="background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.35);color:#fda4af;">
+        {{ error }}
+      </div>
+      {% endif %}
+
+      <form action="/signup" method="post" class="space-y-5" x-data="{loading:false}" @submit="loading=true">
+        {% set fields = [
+          ('nome', 'text', 'Nome completo', nome or '', 'Maria Silva', None),
+          ('email', 'email', 'E-mail', email or '', 'voce@exemplo.com', None),
+          ('senha', 'password', 'Senha', '', 'Mínimo 8 caracteres', 8),
+          ('confirmar_senha', 'password', 'Confirmar senha', '', 'Repita a senha', 8),
+        ] %}
+        {% for name, type, label, value, placeholder, minlen in fields %}
+        <div>
+          <label class="block vk-mono text-[10.5px] uppercase tracking-[0.16em] text-slate-400 mb-1.5">{{ label }}</label>
+          <input type="{{ type }}" name="{{ name }}" value="{{ value }}" required {% if minlen %}minlength="{{ minlen }}"{% endif %} {% if loop.first %}autofocus{% endif %}
+                 class="w-full rounded-lg px-3.5 py-2.5 text-[15px]"
+                 style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);color:#fff;"
+                 onfocus="this.style.borderColor='rgba(236,72,153,0.6)';this.style.boxShadow='0 0 0 3px rgba(236,72,153,0.18)';"
+                 onblur="this.style.borderColor='rgba(255,255,255,0.14)';this.style.boxShadow='none';"
+                 placeholder="{{ placeholder }}">
+        </div>
+        {% endfor %}
+
+        <button type="submit" :disabled="loading" class="vk-btn vk-btn-primary vk-btn-lg w-full">
+          <svg x-show="loading" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          <span x-text="loading ? 'Criando…' : 'Criar conta →'"></span>
+        </button>
+      </form>
+    </div>
+
+    <p class="mt-6 text-center text-sm text-slate-400">
+      Já tem conta? <a href="/login" class="text-brand-300 hover:text-brand-200 font-medium transition">Entrar</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

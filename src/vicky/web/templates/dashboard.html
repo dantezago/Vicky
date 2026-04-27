@@ -1,0 +1,151 @@
+{% extends "app_layout.html" %}
+{% from "components/project_status.html" import status_badge %}
+{% from "components/empty_state.html" import empty_state %}
+{% block title %}Dashboard · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5"><span class="vk-live-dot"></span>Workspace overview</div>{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}<p class="text-xs text-slate-500 mt-1">Acompanhe seus projetos e o trabalho que a IA vem fazendo por você</p>{% endblock %}
+
+{% block content %}
+
+<!-- Hero block: superfície escura ink, espelhando o hero da landing.
+     Background e atmosfera aplicados via inline style para garantir que
+     funcionem mesmo se o CSS externo estiver em cache antigo do browser. -->
+<section class="mb-8 relative overflow-hidden vk-reveal rounded-[18px]"
+         style="background:#0a0414;color:#fff;isolation:isolate;">
+  <!-- Mesh atmospheric (camadas decorativas) -->
+  <div class="pointer-events-none absolute inset-0" style="z-index:0;">
+    <div class="absolute" style="top:-30%;right:-20%;width:70%;height:80%;background:radial-gradient(closest-side,rgba(236,72,153,0.32),rgba(236,72,153,0) 70%);filter:blur(14px);"></div>
+    <div class="absolute" style="bottom:-25%;left:-15%;width:60%;height:70%;background:radial-gradient(closest-side,rgba(139,92,246,0.22),rgba(139,92,246,0) 70%);filter:blur(14px);"></div>
+    <div class="absolute inset-0" style="background-image:linear-gradient(to right,rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,0.04) 1px,transparent 1px);background-size:40px 40px;-webkit-mask-image:radial-gradient(ellipse at 50% 40%,#000 30%,transparent 80%);mask-image:radial-gradient(ellipse at 50% 40%,#000 30%,transparent 80%);"></div>
+  </div>
+  <div class="relative px-7 lg:px-10 py-8 lg:py-10 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8 items-center" style="z-index:1;">
+    <div>
+      <div class="vk-eyebrow mb-3" style="color:#f9a8d4;">
+        <span class="vk-live-dot"></span>
+        Pronta para a próxima busca
+      </div>
+      <h2 class="font-display font-bold tracking-tightest leading-[1.18] text-3xl lg:text-4xl"
+          style="color:#fff;">
+        Do tema à <span class="vk-gradient-text">lista ranqueada</span>,<br class="hidden sm:block">
+        em poucos minutos.
+      </h2>
+      <p class="mt-4 text-sm lg:text-[15px] max-w-xl leading-relaxed" style="color:#cbd5e1;">
+        Insira o tema → a IA gera critérios PICO transparentes, busca em PubMed, SciELO e Google Acadêmico, tria centenas de resultados e entrega os <strong style="color:#fff;">N melhores artigos</strong> para o seu trabalho.
+      </p>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <a href="/projetos/novo" class="vk-btn vk-btn-primary vk-btn-lg">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Novo projeto
+        </a>
+        <a href="/projetos" class="vk-btn vk-btn-lg" style="color:#fff;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);">
+          Ver meus projetos
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- Mini-mockup do flow (espelha o flow da landing) -->
+    <div class="hidden lg:block">
+      <div class="rounded-2xl p-4 backdrop-blur"
+           style="background:rgba(255,255,255,0.04);border:1px solid rgba(236,72,153,0.22);box-shadow:0 30px 70px -20px rgba(236,72,153,0.32);">
+        {% set flow_items = [
+          ("1", "Tema", "Ex: IA na detecção precoce de retinopatia diabética"),
+          ("2", "Critérios PICO", "População, Intervenção, Comparação, Outcome"),
+          ("3", "Triagem com IA", "Quality Score 0–100 + double-check"),
+        ] %}
+        {% for n, label, val in flow_items %}
+        <div class="rounded-xl px-3 py-2.5 mb-2" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+          <div class="flex items-center gap-2 vk-mono text-[10px] uppercase tracking-[0.16em]" style="color:rgba(255,255,255,0.5);">
+            <span class="inline-grid place-items-center w-[18px] h-[18px] rounded-md font-display font-bold text-[10px]" style="background:rgba(236,72,153,0.18);border:1px solid rgba(236,72,153,0.4);color:#f9a8d4;">{{ n }}</span>
+            {{ label }}
+          </div>
+          <div class="mt-1 text-[13px] leading-snug" style="color:rgba(255,255,255,0.92);">{{ val }}</div>
+        </div>
+        {% endfor %}
+        <div class="rounded-xl px-3 py-2.5" style="background:linear-gradient(135deg,rgba(236,72,153,0.16),rgba(236,72,153,0.04));border:1px solid rgba(236,72,153,0.4);">
+          <div class="flex items-center gap-2 vk-mono text-[10px] uppercase tracking-[0.16em]" style="color:rgba(255,255,255,0.55);">
+            <span class="inline-grid place-items-center w-[18px] h-[18px] rounded-md font-display font-bold text-[10px]" style="background:rgba(236,72,153,0.18);border:1px solid rgba(236,72,153,0.4);color:#f9a8d4;">✓</span>
+            Resultado
+          </div>
+          <div class="mt-1 font-display font-bold text-[15px] tracking-tight text-white">Top 30 artigos ranqueados</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- KPI cards refinados -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+  {% set cards = [
+    ("Projetos", m.n_projects, "Total no workspace", "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z", "brand", 1),
+    ("Concluídos", m.n_done, "Pipeline finalizado", "M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z", "emerald", 2),
+    ("Em andamento", m.n_running, "Pipeline rodando agora", "M12 8v4l3 3M21 12a9 9 0 11-18 0 9 9 0 0118 0z", "amber", 3),
+    ("Total artigos", m.n_articles, "Coletados em todos projetos", "M4 6h16M4 12h16M4 18h16", "violet", 4),
+  ] %}
+  {% for title, value, sub, icon, color, delay in cards %}
+  <div class="vk-card vk-card-accent lift p-5 vk-reveal" data-delay="{{ delay }}">
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0 flex-1">
+        <div class="vk-mono text-[10px] uppercase tracking-[0.16em] text-slate-500">{{ title }}</div>
+        <div class="mt-2 font-display text-3xl lg:text-[34px] font-bold text-slate-900 tabular-nums tracking-tighter leading-none">{{ value }}</div>
+        <div class="mt-2 text-[11.5px] text-slate-500 leading-snug">{{ sub }}</div>
+      </div>
+      <div class="inline-flex h-10 w-10 items-center justify-center rounded-xl
+                  {% if color == 'brand' %}bg-brand-50 text-brand-600 border border-brand-100
+                  {% elif color == 'emerald' %}bg-emerald-50 text-emerald-600 border border-emerald-100
+                  {% elif color == 'amber' %}bg-amber-50 text-amber-600 border border-amber-100
+                  {% elif color == 'violet' %}bg-violet-50 text-violet-600 border border-violet-100
+                  {% else %}bg-slate-50 text-slate-600 border border-slate-100{% endif %}">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="{{ icon }}" /></svg>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Projetos recentes -->
+<div class="vk-card overflow-hidden vk-reveal" data-delay="5">
+  <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+    <div>
+      <div class="vk-mono text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-0.5">Atividade recente</div>
+      <h3 class="font-display text-base font-bold text-slate-900 tracking-tight">Projetos recentes</h3>
+    </div>
+    <a href="/projetos" class="vk-mono text-[11px] uppercase tracking-[0.14em] text-brand-600 hover:text-brand-700 font-medium inline-flex items-center gap-1.5">
+      Ver todos
+      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+    </a>
+  </div>
+  {% if m.recent_projects %}
+  <div class="divide-y divide-slate-100">
+    {% for p in m.recent_projects %}
+    <a href="/projetos/{{ p.id }}" class="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50/80 transition group">
+      <div class="shrink-0">{{ status_badge(p.status) }}</div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold text-slate-900 truncate group-hover:text-brand-700 transition">{{ p.topic }}</div>
+        <div class="vk-mono text-[10.5px] uppercase tracking-[0.12em] text-slate-400 mt-0.5 tabular-nums">
+          {{ p.n_articles }} artigos · {{ p.updated_at[:10] }}
+        </div>
+      </div>
+      <svg class="h-4 w-4 text-slate-300 group-hover:text-brand-500 group-hover:translate-x-0.5 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="p-12 text-center">
+    <div class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-500 border border-brand-100 mb-4">
+      <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+    </div>
+    <h4 class="font-display text-lg font-bold text-slate-900 tracking-tight">Você ainda não criou nenhum projeto</h4>
+    <p class="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">Comece com o tema da sua pesquisa — a IA gera os critérios e cuida de toda a triagem.</p>
+    <div class="mt-5">
+      <a href="/projetos/novo" class="vk-btn vk-btn-primary">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Criar primeiro projeto
+      </a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

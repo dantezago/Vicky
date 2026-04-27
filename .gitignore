@@ -1,0 +1,39 @@
+# Credenciais — NUNCA commitar
+.env
+.env.*
+!.env.example
+
+# Dados locais
+*.db
+*.db-journal
+*.sqlite
+data/
+
+# Output
+relatorio.md
+relatorio.html
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Playwright
+playwright-report/
+test-results/
+.playwright/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store

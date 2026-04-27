@@ -1,0 +1,519 @@
+{# Banner sticky de pipeline em andamento — sempre visível enquanto está rodando #}
+{% macro pipeline_banner(project_id, initial_status, initial_jobs) %}
+<script>
+  window.__pipelineBannerArgs_{{ project_id }} = { projectId: {{ project_id }}, initialStatus: {{ initial_status|tojson }}, initialJobs: {{ initial_jobs|tojson }} };
+</script>
+<div x-data="pipelineBanner(window.__pipelineBannerArgs_{{ project_id }}.projectId, window.__pipelineBannerArgs_{{ project_id }}.initialStatus, window.__pipelineBannerArgs_{{ project_id }}.initialJobs)"
+     x-show="visible"
+     x-cloak
+     class="sticky top-0 z-40 bg-gradient-to-r from-brand-600 via-brand-700 to-brand-600 text-white shadow-lg border-b border-brand-800"
+     x-transition>
+  <div class="px-6 lg:px-10 py-5">
+    <!-- Linha 1: Spinner + título principal + tempo -->
+    <div class="flex items-start gap-5">
+      <div class="shrink-0 pt-0.5">
+        <svg class="animate-spin h-8 w-8" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+          <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+      </div>
+
+      <div class="flex-1 min-w-0">
+        <div class="flex items-baseline justify-between gap-4 flex-wrap">
+          <div>
+            <div class="font-semibold text-base leading-snug" x-text="`Pipeline rodando · ${currentStepLabel}`"></div>
+            <div class="text-xs opacity-80 mt-1" x-text="`${doneSteps} de ${totalSteps} etapas concluídas`"></div>
+          </div>
+          <div class="text-right">
+            <div class="font-mono tabular-nums text-base" x-text="elapsed"></div>
+            <div class="opacity-75 text-[10px] uppercase tracking-wide">tempo decorrido</div>
+          </div>
+        </div>
+
+        <!-- Barra de % geral, maior e mais legível -->
+        <div class="mt-3 h-2 rounded-full bg-white/20 overflow-hidden relative">
+          <div class="h-full bg-white transition-all duration-700 ease-out" :style="`width: ${displayProgress}%`"></div>
+          <div class="absolute inset-y-0 w-16 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer"
+               :style="`left: calc(${displayProgress}% - 4rem)`" x-show="isRunning()"></div>
+        </div>
+        <div class="mt-1.5 flex items-center justify-between text-[11px] opacity-90">
+          <span class="inline-flex items-center gap-1.5">
+            <span class="inline-block h-1.5 w-1.5 rounded-full bg-white/90 animate-pulse"></span>
+            <span x-text="liveAction"></span>
+          </span>
+          <span class="font-mono tabular-nums opacity-75" x-text="`${displayProgress.toFixed(1)}%`"></span>
+        </div>
+
+        {# ── Linha de tranquilização: gerencia ansiedade do usuário durante a espera ── #}
+        <div class="mt-3 flex items-start gap-2 rounded-md bg-white/10 px-3 py-2 text-[11px] leading-relaxed border border-white/15">
+          <svg class="h-4 w-4 shrink-0 mt-0.5 opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="opacity-95">
+            ⏱️ <strong>Tempo médio: cerca de 20 minutos.</strong>
+            Estamos varrendo centenas de artigos, aplicando critérios PICO em <strong>duas passadas independentes</strong>
+            e calibrando a busca em tempo real. É um trabalho minucioso —
+            a profundidade da triagem é o que garante um Top final confiável e auditável.
+            <span class="opacity-80">Pode deixar rodando que avisamos quando terminar.</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Frases rotativas por macro-etapa (gestão de ansiedade — mostra que o sistema
+// continua trabalhando mesmo quando o backend não emite update novo).
+window.__livePhrases = window.__livePhrases || {
+  'discovery': [
+    'Interpretando o tema da pesquisa em linguagem natural…',
+    'Decompondo o tema em conceitos centrais e adjacentes…',
+    'Mapeando População, Intervenção, Comparação e Desfecho (PICO)…',
+    'Cruzando vocabulário controlado com termos livres…',
+    'Sondando candidatos a termos MeSH e qualificadores…',
+    'Modelando descritores DeCS para a base SciELO…',
+    'Calibrando o protocolo de inclusão e exclusão…',
+    'Tensionando os critérios para evitar viés de seleção…',
+    'Definindo limiares de qualidade metodológica…',
+    'Estabelecendo janela temporal e tipo de evidência aceito…',
+    'Compondo expressão booleana otimizada para o PubMed…',
+    'Compondo expressão booleana otimizada para o SciELO…',
+    'Compondo consulta de cobertura ampla para o Google Scholar…',
+    'Aplicando operadores de proximidade e truncamento…',
+    'Verificando expansão de termos MeSH ([MeSH Terms:exp])…',
+    'Avaliando especificidade versus sensibilidade da consulta…',
+    'Validando a estrutura do protocolo gerado…',
+    'Verificando ano corrente injetado nos filtros temporais…',
+    'Rodando verificação de sanidade nos critérios gerados…',
+    'Persistindo o protocolo no banco do projeto…',
+  ],
+  'search_pubmed': [
+    'Negociando conexão segura com eutils.ncbi.nlm.nih.gov…',
+    'Autenticando requisição contra a API E-utilities…',
+    'Disparando endpoint de busca com a consulta estrita…',
+    'Recebendo lote de identificadores PMID candidatos…',
+    'Empilhando identificadores em lotes para respeitar o limite de requisições…',
+    'Respeitando teto de 3 requisições por segundo da API do NCBI…',
+    'Chamando endpoint de obtenção de metadados em formato XML…',
+    'Recebendo o XML do PubMed em fluxo contínuo para leitura incremental…',
+    'Extraindo o cabeçalho MedlineCitation de cada artigo…',
+    'Lendo o título e o resumo estruturado de cada artigo…',
+    'Lendo autores, afiliações e identificador ORCID quando presente…',
+    'Coletando periódico, ISSN e fator de impacto inferido…',
+    'Capturando tipos de publicação (ECR, metanálise, revisão)…',
+    'Capturando cabeçalhos MeSH atribuídos manualmente pelo NCBI…',
+    'Normalizando DOIs para o formato canônico…',
+    'Resolvendo identificadores PubMed Central quando disponíveis…',
+    'Desambiguando datas de publicação impressa e eletrônica…',
+    'Detectando volume escasso e preparando consulta ampliada…',
+    'Acionando estratégia reserva de tema cru se MeSH retornar zero resultados…',
+    'Persistindo registros no banco do projeto…',
+    'Decodificando entidades HTML em campos de texto…',
+    'Higienizando caracteres de controle nos resumos…',
+  ],
+  'search_scielo': [
+    'Estabelecendo sessão HTTPS com search.scielo.org…',
+    'Negociando identificador de navegador real (proteção anti-robô leve)…',
+    'Submetendo formulário de busca com a consulta DeCS…',
+    'Recebendo o HTML paginado de resultados…',
+    'Carregando a árvore do documento no leitor BeautifulSoup…',
+    'Executando seletores CSS sobre os nós de cada artigo…',
+    'Extraindo título em português, inglês e espanhol do mesmo registro…',
+    'Coletando autores e instituições do Brasil e da América Latina…',
+    'Capturando ano, volume e fascículo da revista…',
+    'Resolvendo o endereço permanente do artigo (PID)…',
+    'Detectando o idioma predominante do resumo…',
+    'Triando resumos multilíngues…',
+    'Resolvendo redirecionamentos para a página canônica…',
+    'Decodificando entidades HTML e acentos compostos…',
+    'Detectando paginação e seguindo para a próxima página…',
+    'Filtrando registros sem resumo útil…',
+    'Persistindo metadados normalizados no banco…',
+    'Mantendo fila de nova tentativa para esperas que estouram…',
+  ],
+  'search_scholar': [
+    'Iniciando navegador Chromium em modo invisível via Playwright…',
+    'Carregando contexto isolado de navegador…',
+    'Configurando dimensões de tela e identificação plausível…',
+    'Navegando até scholar.google.com…',
+    'Inspecionando a árvore do documento em busca de desafio anti-robô…',
+    'Sondando se há CAPTCHA reCAPTCHA na rota…',
+    'Aguardando carregamento dinâmico completo da página…',
+    'Disparando a consulta codificada na barra de busca…',
+    'Esperando o seletor de resultado aparecer no documento…',
+    'Iterando sobre cada bloco de artigo retornado…',
+    'Extraindo título, endereço e selo de tipo do artigo…',
+    'Coletando trecho contextual e contagem de citações…',
+    'Resolvendo o endereço para PDF quando disponível…',
+    'Paginando até cerca de 50 resultados (limite operacional)…',
+    'Aplicando atraso humanizado entre requisições para parecer orgânico…',
+    'Completando metadados ausentes via identificador de cluster…',
+    'Persistindo registros normalizados no banco…',
+  ],
+  'dedup': [
+    'Indexando artigos por DOI canônico…',
+    'Comparando registros entre PubMed, SciELO e Scholar…',
+    'Gerando impressão digital (título + ano + primeiro autor)…',
+    'Aplicando normalização Unicode (NFKD + caixa baixa)…',
+    'Removendo acentos para comparação tolerante a grafia…',
+    'Detectando títulos quase idênticos por similaridade aproximada…',
+    'Colapsando duplicatas no registro mais completo…',
+    'Sinalizando os registros descartados como duplicados…',
+    'Preservando o registro com o resumo mais longo…',
+    'Reconciliando DOIs em maiúsculas e minúsculas…',
+  ],
+  'analyze': [
+    'Carregando o protocolo PICO no contexto do avaliador…',
+    'Injetando a instrução-base de revisão sistemática…',
+    'Segmentando o resumo do próximo artigo em unidades de análise…',
+    'Avaliando aderência à População do estudo…',
+    'Avaliando aderência à Intervenção proposta…',
+    'Avaliando presença de grupo controle ou comparação…',
+    'Avaliando desfechos primários reportados…',
+    'Verificando validação externa do método…',
+    'Checando o delineamento do estudo (ECR, coorte, transversal)…',
+    'Inferindo o tamanho amostral declarado no resumo…',
+    'Procurando menção a estudo multicêntrico…',
+    'Cruzando o ano de publicação com a janela temporal…',
+    'Classificando o tipo: revisão, diretriz, atualização…',
+    'Penalizando estudos in vitro ou animais quando irrelevantes…',
+    'Pontuando critérios atendidos individualmente…',
+    'Pontuando critérios violados individualmente…',
+    'Calculando o Quality Score de 0 a 100 com detalhamento…',
+    'Justificando a decisão em texto auditável…',
+    'Atribuindo decisão: incluir, excluir ou incerto…',
+    'Resumindo o artigo em português para o revisor humano…',
+    'Persistindo a análise estruturada no banco…',
+    'Estimando o custo da chamada (tokens de entrada e de saída)…',
+    'Aplicando nova tentativa com espera exponencial em caso de limite de requisições…',
+  ],
+  'double_check': [
+    'Reabrindo cada exclusão da primeira passada…',
+    'Limpando o contexto do modelo de linguagem (sem viés da decisão prévia)…',
+    'Reapresentando os critérios PICO ao revisor automático…',
+    'Auditando o motivo de exclusão original…',
+    'Procurando falsos negativos da primeira triagem…',
+    'Comparando a segunda decisão com a primeira…',
+    'Marcando os casos em que há concordância entre passadas…',
+    'Marcando e sinalizando os casos de discordância…',
+    'Registrando a explicação textual do auditor…',
+    'Promovendo artigos ressuscitados para revisão humana…',
+    'Persistindo o veredito da segunda passada…',
+    'Computando a taxa de concordância entre passadas…',
+  ],
+  'finalize': [
+    'Ranqueando incluídos por Quality Score em ordem decrescente…',
+    'Aplicando o corte determinístico no Top final…',
+    'Marcando os artigos sobreviventes ao corte…',
+    'Garantindo que nenhum excluído entrou no Top…',
+  ],
+  'verify': [
+    'Rodando lista de verificação final de integridade…',
+    'Conferindo se a etapa de descoberta gerou critérios válidos…',
+    'Conferindo se cada fonte foi varrida…',
+    'Conferindo se a deduplicação foi aplicada…',
+    'Conferindo cobertura: análise alcançou todos os artigos não duplicados…',
+    'Conferindo cobertura: dupla checagem alcançou todas as exclusões…',
+    'Validando o piso mínimo de varredura por tipo de revisão…',
+    'Validando que o Top final é menor ou igual à meta do projeto…',
+    'Calculando estatísticas finais do projeto…',
+    'Selando o relatório auditável…',
+  ],
+};
+
+// Labels canônicos (espelham o dropdown ⚙️ Pipeline)
+window.__stepLabelMap = {
+  'discovery': 'Critérios PICO',
+  'search_pubmed': 'Busca PubMed',
+  'search_scielo': 'Busca SciELO',
+  'search_scholar': 'Busca Scholar',
+  'dedup': 'Dedup por DOI',
+  'analyze': 'Triagem IA',
+  'double_check': 'Double-check',
+  'finalize': 'Top N final',
+  'verify': 'Verificação',
+};
+
+function pipelineBanner(projectId, initialStatus, initialJobs) {
+  return {
+    projectId: projectId,
+    status: initialStatus,
+    jobs: initialJobs || [],
+    visible: false,
+    elapsed: '0s',
+    elapsedSec: 0,
+    timer: null,
+    poller: null,
+    actionTimer: null,
+    creepTimer: null,
+    liveAction: 'Aquecendo motores…',
+    _phraseIdx: 0,
+    _phraseStep: null,
+    _creepPct: 0,
+
+    init() {
+      this.refreshVisibility();
+      if (this.isRunning()) this.start();
+    },
+
+    isRunning() {
+      if (this.status === 'done' || this.status === 'failed') return false;
+      return ['discovering', 'searching', 'analyzing'].includes(this.status)
+             || this.jobs.some(j => j.status === 'running');
+    },
+
+    refreshVisibility() {
+      this.visible = this.isRunning();
+      if (Alpine.store('pipeline')) {
+        Alpine.store('pipeline').running = this.isRunning();
+      }
+    },
+
+    get totalSteps() {
+      // Conta jobs únicos (cada step só conta uma vez, mesmo se houver retry).
+      const seen = new Set();
+      this.jobs.forEach(j => seen.add(this._normalizeStep(j.step)));
+      return Math.max(seen.size, 6);
+    },
+
+    get doneSteps() {
+      // Só conta successes únicos por step canônico
+      const seen = new Set();
+      this.jobs.forEach(j => {
+        if (j.status === 'success') seen.add(this._normalizeStep(j.step));
+      });
+      return seen.size;
+    },
+
+    _normalizeStep(step) {
+      // Trata variantes (rotate_terms_attempt1, expand_iter1) como passos auxiliares
+      if (!step) return 'unknown';
+      if (step.startsWith('search_')) return step;
+      if (step.startsWith('rotate_terms')) return 'rotate_terms';
+      if (step.startsWith('expand_iter')) return 'expand_search';
+      return step;
+    },
+
+    // Pesos por etapa (fração estimada do tempo total). Soma = 100.
+    // Analyze + double_check dominam; demais etapas são curtas. Esses valores
+    // refletem comportamento real: 100 artigos × ~2s = ~3min só de analyze,
+    // contra ~30s de discovery/search.
+    get _stepWeights() {
+      return {
+        'discovery':     5,
+        'search_pubmed': 5,
+        'search_scielo': 4,
+        'search_scholar': 4,
+        'rotate_terms':  3,
+        'expand_search': 3,
+        'dedup':         1,
+        'analyze':       50,   // peso dominante — é o passo lento de verdade
+        'double_check':  20,
+        'finalize':      2,
+        'verify':        3,
+      };
+    },
+
+    // Progresso ponderado: cada etapa contribui de acordo com seu peso real
+    // (analyze pesa 50%, double_check 20%, etc.). Etapa em execução contribui
+    // proporcionalmente ao seu progress%. Sem essa ponderação, a barra subia
+    // pra 80% só por concluir search+dedup, dando impressão de "quase pronto".
+    get overallProgress() {
+      const weights = this._stepWeights;
+      let totalWeight = 0, earned = 0;
+      for (const [step, w] of Object.entries(weights)) {
+        totalWeight += w;
+        // Procura job mais relevante desse step (running > success > failed)
+        let job = null;
+        for (const j of this.jobs) {
+          if (this._normalizeStep(j.step) !== step) continue;
+          if (!job) { job = j; continue; }
+          // Prioridade: running > failed > success (último vence em caso de empate)
+          if (j.status === 'running') job = j;
+          else if (j.status === 'failed' && job.status !== 'running') job = j;
+          else if (j.status === 'success' && job.status !== 'running' && job.status !== 'failed') job = j;
+        }
+        if (!job) continue;
+        if (job.status === 'success') earned += w;
+        else if (job.status === 'running') {
+          const pct = Math.max(0, Math.min(1, (job.progress || 0) / 100));
+          earned += w * pct;
+        }
+        // failed e pending não contribuem
+      }
+      if (totalWeight === 0) return 0;
+      // Preserva 1 casa decimal (multiplica por 1000, arredonda, divide por 10)
+      return Math.round((earned / totalWeight) * 1000) / 10;
+    },
+
+    get displayProgress() {
+      // Cap o creep em apenas 2% acima do real — antes era 5.5%, dando salto
+      // visual cosmético. Aqui apenas suaviza microbursts de tempo morto.
+      const ceiling = Math.min(99, this.overallProgress + 2);
+      const raw = Math.min(ceiling, Math.max(this.overallProgress, this._creepPct));
+      return Math.round(raw * 10) / 10;
+    },
+
+    get currentStepKey() {
+      const running = this.jobs.find(j => j.status === 'running');
+      if (running) return this._normalizeStep(running.step);
+      if (this.status === 'discovering') return 'discovery';
+      return null;
+    },
+
+    get currentStepLabel() {
+      const labels = {
+        'discovery': 'Gerando critérios PICO',
+        'search_pubmed': 'Buscando no PubMed',
+        'search_scielo': 'Buscando no SciELO',
+        'search_scholar': 'Buscando no Google Scholar',
+        'dedup': 'Removendo duplicados',
+        'analyze': 'Triando artigos com IA',
+        'double_check': 'Auditando exclusões (double-check)',
+        'finalize': 'Selecionando o Top N final',
+        'verify': 'Verificação final',
+        'rotate_terms': 'Rotacionando termos de busca',
+        'expand_search': 'Expandindo a busca',
+      };
+      const running = this.jobs.find(j => j.status === 'running');
+      if (running) return labels[this._normalizeStep(running.step)] || running.step;
+      const lastSuccess = [...this.jobs].reverse().find(j => j.status === 'success');
+      if (lastSuccess) return `Concluído: ${labels[this._normalizeStep(lastSuccess.step)] || lastSuccess.step}`;
+      if (this.status === 'discovering') return 'Gerando critérios PICO';
+      return 'Iniciando…';
+    },
+
+    // Sequência de etapas: combina jobs já criados + as etapas canônicas pendentes.
+    // Mostra ✓ ⟳ ✗ ○ pra cada uma. Aparece embaixo do banner pra dar transparência.
+    get stepEntries() {
+      // Ordem canônica completa do pipeline
+      const canonical = [
+        'discovery',
+        'search_pubmed', 'search_scielo', 'search_scholar',
+        'dedup',
+        'analyze',
+        'double_check',
+        'finalize',
+        'verify',
+      ];
+
+      // Mapa: canonicalStep → status mais avançado encontrado nos jobs
+      const statusByStep = {};
+      this.jobs.forEach(j => {
+        const k = this._normalizeStep(j.step);
+        // Prioridade: failed > running > success > pending
+        const prev = statusByStep[k];
+        if (!prev) statusByStep[k] = j.status;
+        else if (j.status === 'failed') statusByStep[k] = 'failed';
+        else if (j.status === 'running' && prev !== 'failed') statusByStep[k] = 'running';
+        else if (j.status === 'success' && prev === 'pending') statusByStep[k] = 'success';
+      });
+
+      // Filtra search_* pelas sources reais do projeto (existe job ⇒ está no projeto)
+      const knownSources = new Set();
+      this.jobs.forEach(j => {
+        const k = this._normalizeStep(j.step);
+        if (k.startsWith('search_')) knownSources.add(k);
+      });
+      // Se nenhum job de search ainda — usa todas as 3 como provisional
+      const sourceSteps = knownSources.size
+        ? [...knownSources]
+        : ['search_pubmed', 'search_scielo', 'search_scholar'];
+
+      const out = [];
+      const labels = window.__stepLabelMap;
+      const order = ['discovery', ...sourceSteps, 'dedup', 'analyze', 'double_check', 'finalize', 'verify'];
+      order.forEach(step => {
+        out.push({
+          key: step,
+          label: labels[step] || step,
+          status: statusByStep[step] || 'pending',
+        });
+      });
+      return out;
+    },
+
+    rotateAction() {
+      const step = this.currentStepKey;
+      if (!step) {
+        this.liveAction = 'Preparando próxima etapa…';
+        return;
+      }
+      const phrases = window.__livePhrases[step] || [`Executando ${step}…`];
+      if (this._phraseStep !== step) {
+        this._phraseStep = step;
+        this._phraseIdx = 0;
+      } else {
+        this._phraseIdx = (this._phraseIdx + 1) % phrases.length;
+      }
+      this.liveAction = phrases[this._phraseIdx];
+      const delays = [4000, 5000, 6000, 7000, 9000, 11000, 13000, 16000, 20000, 25000, 28000];
+      const next = delays[Math.floor(Math.random() * delays.length)];
+      if (this.actionTimer) clearTimeout(this.actionTimer);
+      this.actionTimer = setTimeout(() => this.rotateAction(), next);
+    },
+
+    formatElapsed(sec) {
+      if (sec < 60) return `${sec}s`;
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}m ${s}s`;
+    },
+
+    start() {
+      const startTime = Date.now();
+      this.rotateAction();
+      this.timer = setInterval(() => {
+        this.elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+        this.elapsed = this.formatElapsed(this.elapsedSec);
+      }, 1000);
+      this.creepTimer = setInterval(() => {
+        // Creep MUITO mais lento (era 0.3%/s = 18%/min de avanço cosmético).
+        // Agora só "alivia" microintervalos sem update do backend, sem mascarar
+        // que ainda há trabalho real acontecendo. Cap a 1.5% acima do real.
+        const real = this.overallProgress;
+        const ceiling = Math.min(99, real + 1.5);
+        if (this._creepPct < ceiling) {
+          this._creepPct = Math.min(ceiling, this._creepPct + 0.05);
+        } else if (this._creepPct < real) {
+          this._creepPct = real;
+        }
+      }, 1000);
+      const initialStatus = this.status;
+      this.poller = setInterval(async () => {
+        try {
+          const r = await fetch(`/projetos/${this.projectId}/status`);
+          if (!r.ok) return;
+          const d = await r.json();
+          const prevStatus = this.status;
+          const prevStepKey = this.currentStepKey;
+          this.status = d.status;
+          this.jobs = d.jobs;
+          this.refreshVisibility();
+          this._creepPct = Math.max(this._creepPct, this.overallProgress);
+          if (this.currentStepKey !== prevStepKey) this.rotateAction();
+          const discoveryFinished = prevStatus === 'discovering' && d.status === 'criteria_ready';
+          if (d.is_done || d.status === 'failed' || discoveryFinished) {
+            this.stop();
+            setTimeout(() => location.reload(), 800);
+          }
+        } catch (e) { /* ignora erros transitórios */ }
+      }, 3000);
+    },
+
+    stop() {
+      if (this.timer) clearInterval(this.timer);
+      if (this.poller) clearInterval(this.poller);
+      if (this.creepTimer) clearInterval(this.creepTimer);
+      if (this.actionTimer) clearTimeout(this.actionTimer);
+    },
+  };
+}
+
+document.addEventListener('alpine:init', () => {
+  Alpine.store('pipeline', { running: false });
+});
+</script>
+{% endmacro %}

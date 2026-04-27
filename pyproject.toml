@@ -1,0 +1,33 @@
+[project]
+name = "vicky"
+version = "0.1.0"
+description = "Triagem automatizada de artigos do Rayyan para revisão sistemática"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    "playwright>=1.45.0",
+    "openai>=1.40.0",
+    "python-dotenv>=1.0.0",
+    "tenacity>=9.0.0",
+    "httpx>=0.27.0",
+    # Web frontend
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.9",
+    "passlib>=1.7.4",
+    "bcrypt>=4.0,<5.0",
+    "itsdangerous>=2.2.0",
+    "reportlab>=4.2.0",
+]
+
+[project.scripts]
+vicky = "vicky.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vicky"]

@@ -1,0 +1,148 @@
+{% extends "app_layout.html" %}
+{% block title %}Configurações · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5">Sua conta · {{ user.email }}</div>{% endblock %}
+{% block page_title %}Configurações{% endblock %}
+{% block page_subtitle %}<p class="text-xs text-slate-500 mt-1">{% if user.can("manage_users") %}Configurações globais e seu perfil{% else %}Seu perfil e preferências{% endif %}</p>{% endblock %}
+
+{% block content %}
+
+{% if user.can("manage_users") %}
+<!-- Card de administração — só admin enxerga -->
+<div class="mb-6 bg-gradient-to-br from-brand-50 to-white rounded-xl border border-brand-200/70 shadow-card p-6">
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="inline-flex items-center justify-center h-7 w-7 rounded-md bg-brand-600 text-white">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+        </span>
+        <h3 class="text-base font-semibold text-slate-900">Administração</h3>
+      </div>
+      <p class="text-sm text-slate-600">Gerencie usuários, atribua créditos e configure permissões.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/usuarios" class="inline-flex items-center gap-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium px-3.5 py-2 transition shadow-sm">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+        Gerenciar usuários
+      </a>
+      <a href="/usuarios#novo" class="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3.5 py-2 transition shadow-sm">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+        Novo usuário
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if user.can("view_api_usage") and usage_summary %}
+{% set t = usage_summary.totals %}
+<div class="mb-6 bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h3 class="text-base font-semibold text-slate-900">Uso da API · últimos 7 dias</h3>
+      <p class="text-sm text-slate-500 mt-0.5">Resumo do consumo de tokens e custo OpenRouter.</p>
+    </div>
+    <a href="/configuracoes/uso-api" class="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3.5 py-2 transition shadow-sm">
+      Ver histórico completo →
+    </a>
+  </div>
+  <dl class="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div>
+      <dt class="text-[11px] uppercase tracking-wide text-slate-500">Chamadas</dt>
+      <dd class="text-xl font-semibold tabular-nums text-slate-900">{{ t.n_requests or 0 }}</dd>
+    </div>
+    <div>
+      <dt class="text-[11px] uppercase tracking-wide text-slate-500">Tokens</dt>
+      <dd class="text-xl font-semibold tabular-nums text-slate-900">{{ "{:,}".format(t.total_tokens or 0).replace(",", ".") }}</dd>
+    </div>
+    <div>
+      <dt class="text-[11px] uppercase tracking-wide text-brand-700">Gasto USD</dt>
+      <dd class="text-xl font-bold tabular-nums text-brand-700">${{ "%.4f"|format(t.cost_usd or 0) }}</dd>
+    </div>
+    <div>
+      <dt class="text-[11px] uppercase tracking-wide text-slate-500">Custo médio/chamada</dt>
+      <dd class="text-xl font-semibold tabular-nums text-slate-900">${{ "%.5f"|format((t.cost_usd or 0) / t.n_requests) if t.n_requests else "0.00000" }}</dd>
+    </div>
+  </dl>
+</div>
+{% endif %}
+
+{% if user.can("manage_users") %}
+<!-- Layout duas colunas (admin): config global + perfil -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
+    <h3 class="text-sm font-semibold text-slate-900 mb-4">Configuração da aplicação</h3>
+    <dl class="space-y-0 text-sm">
+      <div class="flex justify-between gap-4 py-3 border-b border-slate-100">
+        <dt class="text-slate-500">Modelo OpenRouter padrão</dt>
+        <dd class="font-mono text-slate-900">{{ global_cfg.openrouter_model_default }}</dd>
+      </div>
+      <div class="flex justify-between gap-4 py-3 border-b border-slate-100">
+        <dt class="text-slate-500">Banco de dados</dt>
+        <dd class="font-mono text-xs text-slate-700">~/.local/share/vicky/vicky.db</dd>
+      </div>
+      <div class="flex justify-between gap-4 py-3 border-b border-slate-100">
+        <dt class="text-slate-500">Arquivo de credenciais</dt>
+        <dd class="font-mono text-xs text-slate-700">~/.config/vicky/.env</dd>
+      </div>
+      <div class="flex justify-between gap-4 py-3 border-b border-slate-100">
+        <dt class="text-slate-500">Sources de busca disponíveis</dt>
+        <dd class="text-slate-900">PubMed · SciELO · Google Scholar</dd>
+      </div>
+    </dl>
+  </div>
+
+  <aside class="space-y-5">
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+      <h3 class="text-sm font-semibold text-slate-900 mb-3">Você</h3>
+      <dl class="space-y-3 text-sm">
+        <div class="flex justify-between"><dt class="text-slate-500">Nome</dt><dd class="font-medium">{{ user.name }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">E-mail</dt><dd class="font-mono text-xs">{{ user.email }}</dd></div>
+        <div class="flex justify-between items-center">
+          <dt class="text-slate-500">Créditos</dt>
+          <dd>
+            <span class="inline-flex items-center gap-1 rounded-md bg-violet-50 text-violet-700 border border-violet-200 px-2 py-0.5 text-xs font-medium font-mono">∞ ilimitado</span>
+          </dd>
+        </div>
+      </dl>
+    </div>
+  </aside>
+</div>
+{% else %}
+<!-- Layout simplificado (não-admin): só dados pessoais -->
+<div class="max-w-md">
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
+    <h3 class="text-sm font-semibold text-slate-900 mb-4">Você</h3>
+    <dl class="space-y-4 text-sm">
+      <div class="flex justify-between gap-4">
+        <dt class="text-slate-500">Nome</dt>
+        <dd class="font-medium text-slate-900">{{ user.name }}</dd>
+      </div>
+      <div class="flex justify-between gap-4">
+        <dt class="text-slate-500">E-mail</dt>
+        <dd class="font-mono text-xs text-slate-700">{{ user.email }}</dd>
+      </div>
+      <div class="flex justify-between items-center gap-4">
+        <dt class="text-slate-500">Créditos</dt>
+        <dd>
+          <span class="font-mono tabular-nums font-semibold text-base
+              {% if user.credits == 0 %}text-rose-600
+              {% elif user.credits < 3 %}text-amber-600
+              {% else %}text-emerald-700{% endif %}">{{ user.credits }}</span>
+          <span class="text-xs text-slate-400 ml-1">restantes</span>
+        </dd>
+      </div>
+    </dl>
+    {% if user.credits == 0 %}
+    <div class="mt-5 rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-700">
+      ⚠️ Sem créditos disponíveis. Peça ao administrador para adicionar mais.
+    </div>
+    {% elif user.credits < 3 %}
+    <div class="mt-5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+      ℹ️ Saldo baixo. Cada pipeline consome 1 crédito.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

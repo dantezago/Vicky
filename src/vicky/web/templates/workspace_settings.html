@@ -1,0 +1,145 @@
+{% extends "app_layout.html" %}
+{% block title %}Workspace · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5">Workspace #{{ workspace.id }}</div>{% endblock %}
+{% block page_title %}{{ workspace.name }}{% endblock %}
+{% block page_subtitle %}<p class="text-xs text-slate-500 mt-1">Configurações do seu workspace · credenciais e preferências de modelo</p>{% endblock %}
+
+{% block content %}
+
+{% if request.query_params.get("msg") %}
+<div class="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800">✓ {{ request.query_params.get("msg") }}</div>
+{% endif %}
+{% if request.query_params.get("error") %}
+<div class="mb-4 rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">⚠️ {{ request.query_params.get("error") }}</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
+    <h3 class="text-sm font-semibold text-slate-900 mb-1">Configurações do workspace</h3>
+    <p class="text-xs text-slate-500 mb-5">Cada usuário tem o seu próprio workspace com seus próprios dados isolados.</p>
+
+    <form action="/workspace" method="post" class="space-y-5">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">Nome do workspace</label>
+        <input type="text" name="name" value="{{ workspace.name }}"
+               class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
+      </div>
+
+      <div class="pt-4 border-t border-slate-100">
+        <h4 class="text-sm font-semibold text-slate-900 mb-1">Conexão Rayyan</h4>
+        <p class="text-xs text-slate-500 mb-4">Suas credenciais para o site do Rayyan. Usadas pelos comandos de scraping.</p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">E-mail Rayyan</label>
+            <input type="email" name="rayyan_email" value="{{ workspace.rayyan_email or '' }}"
+                   class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm"
+                   placeholder="seu@email.com">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">
+              Senha Rayyan
+              {% if workspace.rayyan_password %}<span class="text-xs text-emerald-600 font-normal">(configurada)</span>{% endif %}
+            </label>
+            <input type="password" name="rayyan_password" value=""
+                   class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm"
+                   placeholder="{% if workspace.rayyan_password %}deixe em branco para manter{% else %}sua senha{% endif %}">
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Review ID do Rayyan</label>
+          <input type="text" name="rayyan_review_id" value="{{ workspace.rayyan_review_id or '' }}"
+                 class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm font-mono"
+                 placeholder="ex: 1937162">
+          <p class="mt-1 text-xs text-slate-400">Encontre na URL do seu projeto no Rayyan: <code>https://new.rayyan.ai/reviews/<strong>1937162</strong>/fulltext</code></p>
+        </div>
+      </div>
+
+      <div class="pt-4 border-t border-slate-100">
+        <h4 class="text-sm font-semibold text-slate-900 mb-1">Modelo de IA</h4>
+        <div class="mt-3">
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Modelo OpenRouter</label>
+          <select name="openrouter_model" class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
+            {% set models = [
+              ("openai/gpt-4o-mini", "GPT-4o mini (recomendado, rápido e barato)"),
+              ("google/gemini-2.0-flash-001", "Gemini 2.0 Flash (ainda mais barato)"),
+              ("anthropic/claude-haiku-4.5", "Claude Haiku 4.5"),
+              ("anthropic/claude-sonnet-4.6", "Claude Sonnet 4.6 (mais inteligente, mais caro)"),
+            ] %}
+            {% for value, label in models %}
+              <option value="{{ value }}" {% if value == workspace.openrouter_model %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mt-4">
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">
+            Sua chave OpenRouter
+            {% if workspace.has_own_api_key %}<span class="text-xs text-emerald-600 font-normal">(configurada)</span>
+            {% else %}<span class="text-xs text-amber-600 font-normal">(usando chave compartilhada)</span>{% endif %}
+          </label>
+          <input type="password" name="openrouter_api_key" value=""
+                 class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm font-mono"
+                 placeholder="{% if workspace.has_own_api_key %}deixe em branco para manter, digite '__clear__' para apagar{% else %}sk-or-v1-...{% endif %}">
+          <p class="mt-1.5 text-xs text-slate-500 leading-relaxed">
+            <strong class="text-slate-700">Por que isso importa:</strong> sem chave própria, seu pipeline divide o rate-limit
+            do OpenRouter com todos os outros usuários do servidor — quando alguém roda outro pipeline ao mesmo tempo,
+            o seu fica mais lento. Com chave própria, você usa <strong>sua quota privada</strong> e ninguém te atrasa.
+            Pegue uma em <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" class="text-brand-600 hover:text-brand-700 underline">openrouter.ai/keys</a>.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-5 py-2.5 transition shadow-sm">
+          Salvar configurações
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Sidebar info -->
+  <aside class="space-y-5">
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+      <h3 class="text-sm font-semibold text-slate-900 mb-3">Status</h3>
+      <dl class="space-y-3 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Rayyan</dt>
+          <dd class="font-medium {% if workspace.has_rayyan_credentials %}text-emerald-600{% else %}text-amber-600{% endif %}">
+            {% if workspace.has_rayyan_credentials %}✓ Conectado{% else %}⚠️ Não configurado{% endif %}
+          </dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Modelo</dt>
+          <dd class="font-mono text-xs text-slate-700">{{ workspace.openrouter_model }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">API Key</dt>
+          <dd class="font-medium {% if workspace.has_own_api_key %}text-emerald-600{% else %}text-amber-600{% endif %}">
+            {% if workspace.has_own_api_key %}✓ Própria{% else %}⚠️ Compartilhada{% endif %}
+          </dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Criado em</dt>
+          <dd class="text-slate-700">{{ workspace.created_at }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="rounded-xl bg-blue-50 border border-blue-200 p-5 text-sm text-blue-900">
+      <h4 class="font-semibold mb-2 flex items-center gap-1.5">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        Como rodar a triagem
+      </h4>
+      <ol class="text-xs text-blue-800 space-y-1.5 list-decimal list-inside">
+        <li>Configure suas credenciais Rayyan acima</li>
+        <li>No terminal, rode <code class="bg-white/60 px-1 rounded">vicky scrape --user {{ user.email }}</code></li>
+        <li>Depois <code class="bg-white/60 px-1 rounded">vicky analyze --user {{ user.email }}</code></li>
+        <li>E por fim <code class="bg-white/60 px-1 rounded">vicky double-check --user {{ user.email }}</code></li>
+      </ol>
+    </div>
+  </aside>
+</div>
+
+{% endblock %}

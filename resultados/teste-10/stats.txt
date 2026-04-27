@@ -1,0 +1,7 @@
+articles: 10
+analyzed: 10
+included: 6
+excluded: 4
+uncertain: 0
+double_checked: 4
+disagreements: 2

@@ -1,0 +1,7 @@
+Total raspado: 473
+Total analisado: 473
+Pool de incluídos: 60
+  - 1ª passada: 25
+  - Recuperados pelo double-check: 35
+Top 40 (cutoff score >= 75): 40
+Excluídos confirmados: 158

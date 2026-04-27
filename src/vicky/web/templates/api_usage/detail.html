@@ -1,0 +1,79 @@
+{% extends "app_layout.html" %}
+{% from "components/status_badge.html" import step_badge, review_type_badge %}
+{% block title %}Chamada #{{ r.id }} · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5"><a href="/configuracoes/uso-api" class="hover:text-brand-600 transition">← Voltar ao histórico</a></div>{% endblock %}
+{% block page_title %}Chamada LLM #{{ r.id }}{% endblock %}
+{% block page_subtitle %}{% endblock %}
+
+{% block content %}
+{% set md = r.request_metadata_parsed %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 space-y-6">
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
+      <h3 class="text-sm font-semibold text-slate-900 mb-4">Resumo da chamada</h3>
+      <dl class="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
+        <dt class="text-slate-500">Etapa</dt><dd>{{ step_badge(r.pipeline_step) }}</dd>
+        <dt class="text-slate-500">Quando</dt><dd class="font-mono text-xs" title="Horário de Brasília (UTC-3)">{{ r.created_at|brt }}</dd>
+        <dt class="text-slate-500">Modelo</dt><dd class="font-mono text-xs">{{ r.model }}</dd>
+        <dt class="text-slate-500">Duração</dt><dd class="tabular-nums">{{ r.duration_ms or "—" }} ms</dd>
+        <dt class="text-slate-500">Tokens (input)</dt><dd class="tabular-nums">{{ "{:,}".format(r.prompt_tokens).replace(",", ".") }}</dd>
+        <dt class="text-slate-500">Tokens (output)</dt><dd class="tabular-nums">{{ "{:,}".format(r.completion_tokens).replace(",", ".") }}</dd>
+        <dt class="text-slate-500">Tokens (total)</dt><dd class="tabular-nums font-semibold">{{ "{:,}".format(r.total_tokens).replace(",", ".") }}</dd>
+        <dt class="text-slate-500">Custo (USD)</dt><dd class="tabular-nums font-bold text-brand-700">${{ "%.6f"|format(r.cost_usd) }}</dd>
+      </dl>
+    </div>
+
+    {% if r.article_title %}
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
+      <h3 class="text-sm font-semibold text-slate-900 mb-3">Artigo associado</h3>
+      <p class="text-sm text-slate-700">{{ r.article_title }}</p>
+      <p class="text-xs text-slate-400 mt-1 font-mono">{{ r.article_source }} · {{ r.article_external_id }}</p>
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
+      <h3 class="text-sm font-semibold text-slate-900 mb-3">Parâmetros do pipeline</h3>
+      {% if md %}
+      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6 text-sm">
+        {% if md.topic %}<dt class="text-slate-500">Tema</dt><dd class="text-slate-900">{{ md.topic }}</dd>{% endif %}
+        {% if md.objective %}<dt class="text-slate-500">Objetivo</dt><dd>{{ md.objective }}</dd>{% endif %}
+        {% if md.review_type %}<dt class="text-slate-500">Tipo de revisão</dt><dd>{{ review_type_badge(md.review_type) }}</dd>{% endif %}
+        {% if md.target_articles %}<dt class="text-slate-500">Meta Top N</dt><dd class="tabular-nums">{{ md.target_articles }}</dd>{% endif %}
+        {% if md.years_window %}<dt class="text-slate-500">Janela temporal</dt><dd class="tabular-nums">{{ md.years_window }} anos</dd>{% endif %}
+        {% if md.sources %}<dt class="text-slate-500">Sources</dt><dd class="font-mono text-xs">{{ md.sources }}</dd>{% endif %}
+        {% if md.decision %}<dt class="text-slate-500">Decisão da IA</dt><dd>{{ md.decision }}{% if md.quality_score %} (score {{ md.quality_score }}){% endif %}</dd>{% endif %}
+        {% if md.agrees is defined %}<dt class="text-slate-500">Double-check</dt><dd>{{ "concordou" if md.agrees else "discordou" }} → {{ md.final_decision }}</dd>{% endif %}
+        {% if md.attempt %}<dt class="text-slate-500">Tentativa de rotação</dt><dd class="tabular-nums">#{{ md.attempt }}</dd>{% endif %}
+        {% if md.rationale %}<dt class="text-slate-500">Rationale</dt><dd>{{ md.rationale }}</dd>{% endif %}
+      </dl>
+      {% else %}
+      <p class="text-xs text-slate-400">Sem metadata.</p>
+      {% endif %}
+
+      <details class="mt-4">
+        <summary class="text-xs text-slate-500 cursor-pointer hover:text-slate-700">Ver JSON bruto</summary>
+        <pre class="mt-2 text-[11px] bg-slate-50 border border-slate-200 rounded p-3 overflow-x-auto text-slate-700">{{ r.request_metadata or "{}" }}</pre>
+      </details>
+    </div>
+  </div>
+
+  <aside class="space-y-4">
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+      <h3 class="text-sm font-semibold text-slate-900 mb-3">Contexto</h3>
+      <dl class="space-y-2 text-sm">
+        <div><dt class="text-slate-500 text-xs">Workspace</dt><dd>{{ r.workspace_name or "—" }}</dd></div>
+        <div><dt class="text-slate-500 text-xs">Usuário</dt><dd>{{ r.user_name or "—" }}<div class="text-[11px] font-mono text-slate-400">{{ r.user_email or "" }}</div></dd></div>
+        <div><dt class="text-slate-500 text-xs">Projeto</dt>
+          <dd>
+            {% if r.project_id %}
+              <a href="/projetos/{{ r.project_id }}" class="text-brand-700 hover:underline">{{ r.project_topic }}</a>
+            {% else %}<span class="text-slate-400">— (projeto excluído)</span>{% endif %}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  </aside>
+</div>
+
+{% endblock %}

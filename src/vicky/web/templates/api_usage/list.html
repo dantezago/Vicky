@@ -1,0 +1,234 @@
+{% extends "app_layout.html" %}
+{% from "components/status_badge.html" import step_badge, review_type_badge %}
+{% block title %}Uso da API · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5">Telemetria · OpenRouter</div>{% endblock %}
+{% block page_title %}Uso da API{% endblock %}
+{% block page_subtitle %}<p class="text-xs text-slate-500 mt-1">Histórico de chamadas LLM com gasto em tokens e USD · horário de Brasília</p>{% endblock %}
+
+{% block content %}
+{% set t = totals.totals %}
+
+<!-- KPIs no topo -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide">Chamadas</div>
+    <div class="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">{{ t.n_requests or 0 }}</div>
+  </div>
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide">Tokens totais</div>
+    <div class="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">{{ "{:,}".format(t.total_tokens or 0).replace(",", ".") }}</div>
+    <div class="text-[11px] text-slate-400 mt-0.5">in: {{ "{:,}".format(t.prompt_tokens or 0).replace(",", ".") }} · out: {{ "{:,}".format(t.completion_tokens or 0).replace(",", ".") }}</div>
+  </div>
+  <div class="bg-gradient-to-br from-brand-50 to-white rounded-xl border border-brand-200/70 shadow-card p-5">
+    <div class="text-xs text-brand-700 uppercase tracking-wide font-semibold">Gasto total (USD)</div>
+    <div class="mt-1 text-2xl font-bold text-brand-700 tabular-nums">${{ "%.4f"|format(t.cost_usd or 0) }}</div>
+  </div>
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide">Custo médio / chamada</div>
+    <div class="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">
+      ${{ "%.5f"|format((t.cost_usd or 0) / t.n_requests) if t.n_requests else "0.00000" }}
+    </div>
+  </div>
+</div>
+
+<!-- Médias por projeto inteiro, por tipo de revisão -->
+{% if avg_by_review_type %}
+{% set sys = avg_by_review_type.systematic_review %}
+{% set narr = avg_by_review_type.narrative_review %}
+{% set both = avg_by_review_type.all %}
+{% set dur_sys = (duration_by_review_type or {}).get('systematic_review', {'avg_seconds': 0}) %}
+{% set dur_narr = (duration_by_review_type or {}).get('narrative_review', {'avg_seconds': 0}) %}
+{% set dur_both = (duration_by_review_type or {}).get('all', {'avg_seconds': 0}) %}
+{% macro fmt_duration(seconds) -%}
+  {%- set s = (seconds or 0)|round|int -%}
+  {%- if s < 60 -%}{{ s }}s
+  {%- else -%}{{ (s // 60) }}m {{ (s % 60) }}s
+  {%- endif -%}
+{%- endmacro %}
+<div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h3 class="text-sm font-semibold text-slate-900">Custo médio por projeto inteiro</h3>
+      <p class="text-xs text-slate-500 mt-0.5">Média de tokens e USD gastos para rodar um projeto do início ao fim, agrupado por tipo de revisão. Inclui pipelines passados.</p>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Revisão sistemática -->
+    <div class="rounded-lg border border-slate-200 p-4 bg-slate-50/40">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="inline-flex items-center gap-1 rounded-md bg-slate-100 text-slate-700 text-[11px] font-medium px-2 py-0.5 border border-slate-200">📐 Revisão sistemática</span>
+        <span class="text-[10px] text-slate-400 tabular-nums">{{ sys.n_projects }} projeto{{ '' if sys.n_projects == 1 else 's' }}</span>
+      </div>
+      <dl class="space-y-1.5 text-sm">
+        <div class="flex justify-between"><dt class="text-slate-500">Tokens médios</dt><dd class="tabular-nums font-medium">{{ "{:,}".format(sys.avg_tokens|round|int).replace(",", ".") }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">USD médio</dt><dd class="tabular-nums font-medium text-brand-700">${{ "%.4f"|format(sys.avg_cost) }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">Tempo médio</dt><dd class="tabular-nums font-medium">{{ fmt_duration(dur_sys.avg_seconds) }}</dd></div>
+        <div class="flex justify-between text-[11px] pt-1 border-t border-slate-200/70 mt-1.5"><dt class="text-slate-400">Total acumulado</dt><dd class="tabular-nums text-slate-500">${{ "%.2f"|format(sys.sum_cost) }}</dd></div>
+      </dl>
+    </div>
+    <!-- Artigo de resumo / narrativa -->
+    <div class="rounded-lg border border-violet-200 p-4 bg-violet-50/40">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="inline-flex items-center gap-1 rounded-md bg-violet-100 text-violet-800 text-[11px] font-medium px-2 py-0.5 border border-violet-200">📝 Artigo de resumo</span>
+        <span class="text-[10px] text-slate-400 tabular-nums">{{ narr.n_projects }} projeto{{ '' if narr.n_projects == 1 else 's' }}</span>
+      </div>
+      <dl class="space-y-1.5 text-sm">
+        <div class="flex justify-between"><dt class="text-slate-500">Tokens médios</dt><dd class="tabular-nums font-medium">{{ "{:,}".format(narr.avg_tokens|round|int).replace(",", ".") }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">USD médio</dt><dd class="tabular-nums font-medium text-brand-700">${{ "%.4f"|format(narr.avg_cost) }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">Tempo médio</dt><dd class="tabular-nums font-medium">{{ fmt_duration(dur_narr.avg_seconds) }}</dd></div>
+        <div class="flex justify-between text-[11px] pt-1 border-t border-violet-200/70 mt-1.5"><dt class="text-slate-400">Total acumulado</dt><dd class="tabular-nums text-slate-500">${{ "%.2f"|format(narr.sum_cost) }}</dd></div>
+      </dl>
+    </div>
+    <!-- Média geral -->
+    <div class="rounded-lg border border-brand-200 p-4 bg-gradient-to-br from-brand-50 to-white">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="inline-flex items-center gap-1 rounded-md bg-brand-100 text-brand-800 text-[11px] font-semibold px-2 py-0.5 border border-brand-200">∑ Média geral</span>
+        <span class="text-[10px] text-slate-400 tabular-nums">{{ both.n_projects }} projeto{{ '' if both.n_projects == 1 else 's' }}</span>
+      </div>
+      <dl class="space-y-1.5 text-sm">
+        <div class="flex justify-between"><dt class="text-slate-500">Tokens médios</dt><dd class="tabular-nums font-semibold">{{ "{:,}".format(both.avg_tokens|round|int).replace(",", ".") }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">USD médio</dt><dd class="tabular-nums font-semibold text-brand-700">${{ "%.4f"|format(both.avg_cost) }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">Tempo médio</dt><dd class="tabular-nums font-semibold">{{ fmt_duration(dur_both.avg_seconds) }}</dd></div>
+        <div class="flex justify-between text-[11px] pt-1 border-t border-brand-200/70 mt-1.5"><dt class="text-slate-400">Total acumulado</dt><dd class="tabular-nums text-slate-500">${{ "%.2f"|format(both.sum_cost) }}</dd></div>
+      </dl>
+    </div>
+  </div>
+  {% if both.n_projects == 0 %}
+  <p class="text-[11px] text-slate-400 mt-3">Nenhum projeto com chamadas LLM registradas ainda — rode um pipeline e os dados aparecerão aqui.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Breakdowns por step e modelo -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+    <h3 class="text-sm font-semibold text-slate-900 mb-3">Por etapa do pipeline</h3>
+    {% if totals.by_step %}
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100">
+        <th class="py-2">Etapa</th><th>Chamadas</th><th>Tokens</th><th class="text-right">USD</th>
+      </tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for s in totals.by_step %}
+        <tr><td class="py-2">{{ step_badge(s.pipeline_step) }}</td>
+          <td class="tabular-nums">{{ s.n }}</td>
+          <td class="tabular-nums">{{ "{:,}".format(s.tokens).replace(",", ".") }}</td>
+          <td class="tabular-nums text-right font-medium">${{ "%.4f"|format(s.cost) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-xs text-slate-400">Sem dados ainda.</p>
+    {% endif %}
+  </div>
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+    <h3 class="text-sm font-semibold text-slate-900 mb-3">Por modelo</h3>
+    {% if totals.by_model %}
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100">
+        <th class="py-2">Modelo</th><th>Chamadas</th><th>Tokens</th><th class="text-right">USD</th>
+      </tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for m in totals.by_model %}
+        <tr><td class="py-2 font-mono text-xs">{{ m.model }}</td>
+          <td class="tabular-nums">{{ m.n }}</td>
+          <td class="tabular-nums">{{ "{:,}".format(m.tokens).replace(",", ".") }}</td>
+          <td class="tabular-nums text-right font-medium">${{ "%.4f"|format(m.cost) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-xs text-slate-400">Sem dados ainda.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" class="bg-white rounded-xl border border-slate-200/70 shadow-card p-4 mb-4 flex flex-wrap gap-3 items-end">
+  <div>
+    <label class="block text-[11px] text-slate-500 mb-1">Etapa</label>
+    <select name="step" class="text-sm border border-slate-300 rounded-md px-2 py-1.5">
+      <option value="">Todas</option>
+      {% for s in options.steps %}<option value="{{ s }}" {% if filters.step == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-[11px] text-slate-500 mb-1">Modelo</label>
+    <select name="model" class="text-sm border border-slate-300 rounded-md px-2 py-1.5">
+      <option value="">Todos</option>
+      {% for m in options.models %}<option value="{{ m }}" {% if filters.model == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-[11px] text-slate-500 mb-1">Usuário</label>
+    <select name="user_id" class="text-sm border border-slate-300 rounded-md px-2 py-1.5">
+      <option value="">Todos</option>
+      {% for u in options.users %}<option value="{{ u.user_id }}" {% if filters.user_id == u.user_id|string %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-[11px] text-slate-500 mb-1">Projeto</label>
+    <select name="project_id" class="text-sm border border-slate-300 rounded-md px-2 py-1.5 max-w-[280px]">
+      <option value="">Todos</option>
+      {% for p in options.projects %}<option value="{{ p.project_id }}" {% if filters.project_id == p.project_id|string %}selected{% endif %}>{{ p.topic[:60] }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-[11px] text-slate-500 mb-1">Desde (YYYY-MM-DD)</label>
+    <input type="date" name="since" value="{{ filters.since }}" class="text-sm border border-slate-300 rounded-md px-2 py-1.5">
+  </div>
+  <button type="submit" class="rounded-md bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3 py-1.5">Filtrar</button>
+  <a href="/configuracoes/uso-api" class="text-sm text-slate-500 hover:text-slate-700">Limpar</a>
+</form>
+
+<!-- Tabela -->
+<div class="bg-white rounded-xl border border-slate-200/70 shadow-card overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-3">Quando</th>
+        <th class="py-3">Usuário</th>
+        <th class="py-3">Projeto</th>
+        <th class="py-3">Etapa</th>
+        <th class="py-3">Modelo</th>
+        <th class="py-3 text-right">Tokens</th>
+        <th class="py-3 text-right pr-4">USD</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for r in items %}
+      <tr class="hover:bg-slate-50 cursor-pointer" onclick="window.location='/configuracoes/uso-api/{{ r.id }}'">
+        <td class="px-4 py-2.5 text-xs text-slate-600 tabular-nums whitespace-nowrap" title="Horário de Brasília (UTC-3)">{{ r.created_at|brt }}</td>
+        <td class="py-2.5 text-slate-700">{{ r.user_name or "—" }}<div class="text-[10px] text-slate-400 font-mono">{{ r.user_email or "" }}</div></td>
+        <td class="py-2.5">
+          {% if r.project_topic %}
+            <div class="text-slate-900 max-w-[280px] truncate" title="{{ r.project_topic }}">{{ r.project_topic }}</div>
+            <div class="mt-0.5">{{ review_type_badge(r.project_review_type) }}</div>
+          {% else %}<span class="text-slate-300">—</span>{% endif %}
+        </td>
+        <td class="py-2.5">{{ step_badge(r.pipeline_step) }}</td>
+        <td class="py-2.5 font-mono text-[11px] text-slate-600">{{ r.model }}</td>
+        <td class="py-2.5 text-right tabular-nums">{{ "{:,}".format(r.total_tokens).replace(",", ".") }}</td>
+        <td class="py-2.5 text-right pr-4 tabular-nums font-medium">${{ "%.5f"|format(r.cost_usd) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="px-4 py-8 text-center text-sm text-slate-400">Nenhuma chamada registrada com esses filtros.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Paginação simples -->
+{% if page > 1 or has_more %}
+<div class="flex justify-between items-center mt-4">
+  {% if page > 1 %}
+    <a href="?page={{ page - 1 }}{% for k,v in filters.items() if v %}&{{ k }}={{ v }}{% endfor %}" class="text-sm text-brand-600 hover:underline">← Anterior</a>
+  {% else %}<span></span>{% endif %}
+  <span class="text-xs text-slate-400">Página {{ page }}</span>
+  {% if has_more %}
+    <a href="?page={{ page + 1 }}{% for k,v in filters.items() if v %}&{{ k }}={{ v }}{% endfor %}" class="text-sm text-brand-600 hover:underline">Próxima →</a>
+  {% else %}<span></span>{% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

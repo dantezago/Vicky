@@ -1,0 +1,334 @@
+/* ========================================
+   Vicky · Design system do app logado
+   Espelhando o vocabulário visual da landing
+   (Bricolage Grotesque + DM Sans + DM Mono · ink #0a0414 · pink gradients)
+   ======================================== */
+
+:root {
+  --vk-brand-50:  #fdf2f8;
+  --vk-brand-100: #fce7f3;
+  --vk-brand-200: #fbcfe8;
+  --vk-brand-300: #f9a8d4;
+  --vk-brand-400: #f472b6;
+  --vk-brand-500: #ec4899;
+  --vk-brand-600: #db2777;
+  --vk-brand-700: #be185d;
+  --vk-brand-800: #9d174d;
+  --vk-brand-900: #831843;
+  --vk-ink:       #0a0414;
+  --vk-ink-soft:  #150a1f;
+  --vk-grain-opacity: 0.025;
+}
+
+/* Esconder elemento até Alpine.js carregar */
+[x-cloak] { display: none !important; }
+
+html { scroll-behavior: smooth; }
+body { font-feature-settings: "ss01", "cv11"; }
+
+/* ─── Tipografia ─────────────────────────────────────── */
+
+.vk-display { font-family: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+.vk-display-bold { font-family: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif; font-weight: 800; letter-spacing: -0.025em; }
+.vk-mono { font-family: 'DM Mono', 'JetBrains Mono', ui-monospace, monospace; }
+
+/* Bricolage Grotesque tem métricas equilibradas (descendentes comportados),
+   então só uma folguinha mínima como segurança contra qualquer container
+   apertado. Sem !important — deixa o leading inline de cada template
+   prevalecer quando especificado. */
+h1.font-display, h2.font-display, h3.font-display,
+h4.font-display, h5.font-display, h6.font-display {
+  padding-bottom: 0.05em;
+}
+
+/* Eyebrow: pequena etiqueta em mono-uppercase, espaçada — espelha a landing */
+.vk-eyebrow {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--vk-brand-600);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.vk-eyebrow.muted { color: #64748b; }
+.vk-eyebrow.dark { color: #f9a8d4; }
+
+/* Texto com gradiente — para palavras de destaque em headlines */
+.vk-gradient-text {
+  background: linear-gradient(135deg, #ec4899 0%, #f472b6 60%, #fbcfe8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Underline decorativo opcional pra headlines */
+.vk-headline-underline {
+  position: relative;
+  display: inline-block;
+}
+.vk-headline-underline::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -4px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--vk-brand-500), var(--vk-brand-700));
+  opacity: 0.85;
+}
+
+/* ─── Surfaces (cards) ───────────────────────────────── */
+
+/* Card base — branco com borda fina, hover sutil. Para grids comuns. */
+.vk-card {
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.03);
+  transition: transform 0.18s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.vk-card:hover {
+  border-color: rgba(251, 207, 232, 0.9);
+}
+.vk-card.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px -12px rgba(15, 23, 42, 0.12);
+  border-color: rgba(251, 207, 232, 1);
+}
+
+/* Card com barra de gradiente decorativa no topo (para headers de seção) */
+.vk-card-accent {
+  position: relative;
+  overflow: hidden;
+}
+.vk-card-accent::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--vk-brand-500), var(--vk-brand-700) 60%, var(--vk-brand-400));
+}
+
+/* Card de superfície escura — para hero blocks dentro do app (matching landing hero) */
+.vk-ink-surface {
+  background: var(--vk-ink);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 18px;
+}
+.vk-ink-surface::before {
+  content: "";
+  position: absolute;
+  top: -30%; right: -20%;
+  width: 70%; height: 80%;
+  background: radial-gradient(closest-side, rgba(236, 72, 153, 0.32), rgba(236, 72, 153, 0) 70%);
+  filter: blur(14px);
+  pointer-events: none;
+  z-index: -1;
+}
+.vk-ink-surface::after {
+  content: "";
+  position: absolute;
+  bottom: -25%; left: -15%;
+  width: 60%; height: 70%;
+  background: radial-gradient(closest-side, rgba(139, 92, 246, 0.22), rgba(139, 92, 246, 0) 70%);
+  filter: blur(14px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Grid sutil decorativo em superfícies escuras (matching .hero-grid da landing) */
+.vk-ink-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 40%, #000 30%, transparent 80%);
+  mask-image: radial-gradient(ellipse at 50% 40%, #000 30%, transparent 80%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Mesh suave pra atmosfera em fundos claros (dashboard, etc) */
+.vk-mesh-soft {
+  position: relative;
+  isolation: isolate;
+}
+.vk-mesh-soft::before {
+  content: "";
+  position: absolute;
+  top: -40%; right: -10%;
+  width: 50%; height: 60%;
+  background: radial-gradient(closest-side, rgba(244, 114, 182, 0.15), rgba(244, 114, 182, 0) 70%);
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ─── Botões ──────────────────────────────────────── */
+
+.vk-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 10px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.vk-btn-primary {
+  color: #fff;
+  background: linear-gradient(135deg, var(--vk-brand-500), var(--vk-brand-600));
+  box-shadow: 0 6px 18px -4px rgba(236, 72, 153, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.vk-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px -4px rgba(236, 72, 153, 0.44), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.vk-btn-primary:active { transform: translateY(0); }
+.vk-btn-ghost {
+  color: #475569;
+  background: #fff;
+  border-color: rgba(15, 23, 42, 0.1);
+}
+.vk-btn-ghost:hover {
+  border-color: var(--vk-brand-300);
+  color: var(--vk-brand-700);
+  background: rgba(253, 242, 248, 0.6);
+}
+.vk-btn-lg { padding: 13px 22px; font-size: 15px; border-radius: 12px; }
+
+/* ─── Pílulas e badges refinados ────────────────────── */
+
+.vk-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+.vk-pill-mono {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.vk-pill-brand {
+  background: var(--vk-brand-50);
+  color: var(--vk-brand-700);
+  border: 1px solid var(--vk-brand-200);
+}
+.vk-pill-emerald {
+  background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;
+}
+.vk-pill-rose {
+  background: #fff1f2; color: #be123c; border: 1px solid #fecdd3;
+}
+.vk-pill-amber {
+  background: #fffbeb; color: #b45309; border: 1px solid #fde68a;
+}
+.vk-pill-violet {
+  background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe;
+}
+.vk-pill-slate {
+  background: #f8fafc; color: #475569; border: 1px solid #e2e8f0;
+}
+
+/* Dot pulsante para indicar estado live (mesma da landing) */
+.vk-live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--vk-brand-500);
+  box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.7);
+  animation: vkLivePulse 1.6s ease-out infinite;
+  display: inline-block;
+}
+@keyframes vkLivePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.7); }
+  70%  { box-shadow: 0 0 0 8px rgba(236, 72, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0); }
+}
+
+/* ─── Score gradients (Quality Score 0–100) ──────────── */
+
+.vk-score-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-weight: 500;
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Reveal animation (page load) ───────────────────── */
+
+@keyframes vkReveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.vk-reveal {
+  opacity: 0;
+  animation: vkReveal 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.vk-reveal[data-delay="1"] { animation-delay: 0.06s; }
+.vk-reveal[data-delay="2"] { animation-delay: 0.12s; }
+.vk-reveal[data-delay="3"] { animation-delay: 0.18s; }
+.vk-reveal[data-delay="4"] { animation-delay: 0.24s; }
+.vk-reveal[data-delay="5"] { animation-delay: 0.3s; }
+
+/* ─── Utilitários antigos preservados ───────────────── */
+
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+summary::-webkit-details-marker { display: none; }
+summary::marker { content: ""; }
+
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(800%); }
+}
+.animate-shimmer { animation: shimmer 2.2s linear infinite; }
+
+@keyframes progressPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+.bar-running { animation: progressPulse 1.6s ease-in-out infinite; }
+
+/* Force inputs/textareas to use DM Sans (Tailwind forms plugin sometimes overrides) */
+input, textarea, select, button { font-family: inherit; }
+
+/* Scrollbar refinement em listas longas */
+.vk-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.vk-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.vk-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+.vk-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}

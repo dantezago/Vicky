@@ -1,0 +1,63 @@
+{# Macros: badges refinados em DM Mono uppercase para status de projeto/source/job #}
+{% macro status_badge(status) %}
+  {% if status == "draft" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 text-slate-600 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>Rascunho</span>
+  {% elif status == "discovering" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-violet-50 text-violet-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-violet-200">
+      <svg class="h-2.5 w-2.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke-dasharray="40" stroke-dashoffset="20" stroke="currentColor" stroke-width="3"/></svg>
+      Gerando critérios
+    </span>
+  {% elif status == "criteria_ready" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-blue-200"><span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>Critérios prontos</span>
+  {% elif status == "searching" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-amber-200">
+      <svg class="h-2.5 w-2.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke-dasharray="40" stroke-dashoffset="20" stroke="currentColor" stroke-width="3"/></svg>
+      Buscando artigos
+    </span>
+  {% elif status == "analyzing" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-violet-50 text-violet-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-violet-200">
+      <svg class="h-2.5 w-2.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke-dasharray="40" stroke-dashoffset="20" stroke="currentColor" stroke-width="3"/></svg>
+      Triando com IA
+    </span>
+  {% elif status == "done" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-emerald-200"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Concluído</span>
+  {% elif status == "failed" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 text-rose-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-rose-200"><span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>Falhou</span>
+  {% else %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 text-slate-600 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-slate-200">{{ status }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro source_badge(source) %}
+  {% if source == "pubmed" %}
+    <span class="inline-flex items-center gap-1 rounded-md bg-blue-50 text-blue-700 px-2 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide border border-blue-200">PubMed</span>
+  {% elif source == "scielo" %}
+    <span class="inline-flex items-center gap-1 rounded-md bg-orange-50 text-orange-700 px-2 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide border border-orange-200">SciELO</span>
+  {% elif source == "scholar" %}
+    <span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 text-emerald-700 px-2 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide border border-emerald-200">Scholar</span>
+  {% elif source == "rayyan" %}
+    <span class="inline-flex items-center gap-1 rounded-md bg-violet-50 text-violet-700 px-2 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide border border-violet-200">Rayyan</span>
+  {% else %}
+    <span class="inline-flex items-center gap-1 rounded-md bg-slate-100 text-slate-700 px-2 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide border border-slate-200">{{ source }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro job_status_icon(status) %}
+  {% if status == "success" %}
+    <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+    </span>
+  {% elif status == "failed" %}
+    <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+    </span>
+  {% elif status == "running" %}
+    <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+      <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-dashoffset="20"/></svg>
+    </span>
+  {% else %}
+    <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+      <span class="h-2 w-2 rounded-full bg-slate-400"></span>
+    </span>
+  {% endif %}
+{% endmacro %}

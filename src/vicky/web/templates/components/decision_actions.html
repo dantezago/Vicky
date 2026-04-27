@@ -1,0 +1,47 @@
+{# Macro: botões de override manual da decisão da IA #}
+{% macro decision_actions(rayyan_id, current_decision=None, user_decision=None, can_edit=true, next_url="") %}
+{% if can_edit %}
+<div class="flex flex-wrap gap-2 items-center" x-data="{loading: false}">
+  {% set actions = [
+    ("include", "Incluir", "emerald"),
+    ("exclude", "Excluir", "rose"),
+    ("uncertain", "Marcar incerto", "amber"),
+  ] %}
+  {% for value, label, color in actions %}
+  <form action="/registros/{{ rayyan_id }}/decisao" method="post" class="inline" @submit="loading=true">
+    <input type="hidden" name="decision" value="{{ value }}">
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <button type="submit"
+            :disabled="loading"
+            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition disabled:opacity-50
+                  {% if user_decision == value %}
+                    bg-{{ color }}-600 border-{{ color }}-600 text-white
+                  {% else %}
+                    bg-white border-{{ color }}-200 text-{{ color }}-700 hover:bg-{{ color }}-50
+                  {% endif %}">
+      {% if user_decision == value %}
+        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      {% endif %}
+      {{ label }}
+    </button>
+  </form>
+  {% endfor %}
+
+  {% if user_decision %}
+  <form action="/registros/{{ rayyan_id }}/decisao" method="post" class="inline" @submit="loading=true">
+    <input type="hidden" name="decision" value="clear">
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <button type="submit" :disabled="loading"
+            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition">
+      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+      Limpar
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}

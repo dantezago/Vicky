@@ -1,0 +1,52 @@
+<aside class="hidden lg:flex w-64 shrink-0 flex-col bg-white border-r border-slate-200/80 relative">
+  <!-- Decoração suave de fundo (mesh sutil pra dar profundidade) -->
+  <div class="absolute top-0 left-0 right-0 h-32 pointer-events-none opacity-50"
+       style="background: radial-gradient(ellipse at top, rgba(244, 114, 182, 0.08), transparent 70%);"></div>
+
+  <div class="px-6 py-6 border-b border-slate-100 relative">
+    <a href="/dashboard" class="flex items-center gap-3 group">
+      <span class="inline-flex h-10 w-10 items-center justify-center rounded-[12px] bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-brand-sm transition-transform group-hover:scale-105"
+            style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 18px; box-shadow: 0 6px 18px -4px rgba(236,72,153,0.42), inset 0 1px 0 rgba(255,255,255,0.25);">V</span>
+      <div class="leading-tight">
+        <div class="font-display text-lg font-bold text-slate-900 tracking-tightest">Vicky</div>
+        <div class="vk-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">Triagem com IA</div>
+      </div>
+    </a>
+  </div>
+
+  <nav class="flex-1 px-3 py-5 space-y-0.5 text-sm relative">
+    <div class="px-3 mb-3 vk-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Navegar</div>
+    {% set nav = [
+      ("/dashboard", "Dashboard", "M3 12l2-2 4 4 8-8 4 4M3 21h18", "view_records"),
+      ("/projetos", "Projetos", "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z", "view_records"),
+      ("/usuarios", "Usuários", "M16 7a4 4 0 11-8 0 4 4 0 018 0zm6 14v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2", "manage_users"),
+      ("/configuracoes", "Configurações", "M10.325 4.317a1 1 0 011.35 0l1.473 1.32 1.954-.4a1 1 0 011.176.793l.4 1.954 1.32 1.473a1 1 0 010 1.35l-1.32 1.473.4 1.954a1 1 0 01-.793 1.176l-1.954.4-1.473 1.32a1 1 0 01-1.35 0l-1.473-1.32-1.954.4a1 1 0 01-1.176-.793l-.4-1.954-1.32-1.473a1 1 0 010-1.35l1.32-1.473.4-1.954a1 1 0 01.793-1.176l1.954-.4 1.473-1.32zM12 15a3 3 0 100-6 3 3 0 000 6z", None),
+      ("/configuracoes/uso-api", "Uso da API", "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", "view_api_usage"),
+    ] %}
+    {% for path, label, icon, perm in nav %}
+      {% if not perm or (user and user.can(perm)) %}
+        {% set is_active = active_path == path or active_path.startswith(path + '/') %}
+        <a href="{{ path }}"
+           class="relative flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all
+                  {% if is_active %}
+                    bg-gradient-to-r from-brand-50 to-brand-50/40 text-brand-700 font-semibold
+                  {% else %}
+                    text-slate-600 hover:bg-slate-50 hover:text-slate-900
+                  {% endif %}">
+          {% if is_active %}
+          <span class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r bg-gradient-to-b from-brand-500 to-brand-700"></span>
+          {% endif %}
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px] {% if is_active %}text-brand-600{% else %}text-slate-400 group-hover:text-slate-600{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="{{ icon }}" />
+          </svg>
+          <span>{{ label }}</span>
+        </a>
+      {% endif %}
+    {% endfor %}
+  </nav>
+
+  <div class="px-5 py-4 border-t border-slate-100 vk-mono text-[10px] uppercase tracking-[0.14em] text-slate-400 flex items-center justify-between">
+    <span>v0.1.0</span>
+    <span>{{ user.role_label if user else "" }}</span>
+  </div>
+</aside>

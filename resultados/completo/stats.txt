@@ -1,0 +1,7 @@
+articles: 473
+analyzed: 473
+included: 286
+excluded: 174
+uncertain: 13
+double_checked: 174
+disagreements: 84

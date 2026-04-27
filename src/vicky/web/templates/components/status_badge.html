@@ -1,0 +1,67 @@
+{# Macros refinados em DM Mono uppercase com letter-spacing — espelham landing #}
+{% macro decision_badge(decision, in_top_n=None) %}
+  {% if decision == "include" and in_top_n == 0 %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-violet-50 text-violet-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-violet-200" title="Atende aos critérios mas ficou fora do top N por score">
+      <span class="h-1.5 w-1.5 rounded-full bg-violet-500"></span>Fora do top
+    </span>
+  {% elif decision == "include" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-emerald-200">
+      <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Incluir
+    </span>
+  {% elif decision == "exclude" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 text-rose-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-rose-200">
+      <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>Excluir
+    </span>
+  {% elif decision == "uncertain" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-amber-200">
+      <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>Incerto
+    </span>
+  {% else %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 text-slate-600 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-slate-200">
+      <span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>Pendente
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{% macro score_pill(score) %}
+  {% if score is none %}
+    <span class="vk-mono text-slate-300 text-sm">—</span>
+  {% else %}
+    {% set color = 'emerald' if score >= 75 else ('amber' if score >= 50 else 'slate') %}
+    <span class="inline-flex items-center justify-center min-w-[2.5rem] rounded-md bg-{{ color }}-50 text-{{ color }}-700 border border-{{ color }}-200 px-2 py-1 vk-mono text-[12px] font-semibold tabular-nums tracking-tight">
+      {{ score }}
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{% macro step_badge(step) %}
+  {% if step == "discovery" %}
+    <span class="inline-flex items-center gap-1 rounded-full bg-violet-50 text-violet-700 px-2.5 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide uppercase border border-violet-200">Discovery</span>
+  {% elif step == "analyze" %}
+    <span class="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 px-2.5 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide uppercase border border-blue-200">Analyze</span>
+  {% elif step == "double_check" %}
+    <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-2.5 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide uppercase border border-amber-200">Double-check</span>
+  {% elif step == "rotate_terms" %}
+    <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-700 px-2.5 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide uppercase border border-slate-200">Rotação</span>
+  {% else %}
+    <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 px-2.5 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide uppercase border border-slate-200">{{ step }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro review_type_badge(rt) %}
+  {% if rt == "narrative_review" %}
+    <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 px-2.5 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide uppercase border border-indigo-200">Resumo</span>
+  {% else %}
+    <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-0.5 vk-mono text-[10.5px] font-medium tracking-wide uppercase border border-emerald-200">Sistemática</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro user_status(status) %}
+  {% if status == "active" %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-emerald-200">
+      <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Ativo
+    </span>
+  {% else %}
+    <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 text-slate-500 px-2.5 py-1 vk-mono text-[10.5px] font-medium uppercase tracking-[0.12em] border border-slate-200">Inativo</span>
+  {% endif %}
+{% endmacro %}
