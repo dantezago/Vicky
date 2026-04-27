@@ -87,7 +87,10 @@ def _call(client: OpenAI, model: str, system: str, user: str) -> LLMResult:
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         response_format={"type": "json_object"},
         temperature=0.1,
-        max_tokens=700,
+        # max_tokens=2000: a resposta inclui decision + reason + summary_pt (3-5 linhas) +
+        # criteria_matched/violated (listas) + quality_score + score_breakdown (6 chaves).
+        # Com 700 a JSON era truncada em ~47% dos casos, deixando summary_pt vazio.
+        max_tokens=2000,
     )
     dt = int((time.monotonic() - t0) * 1000)
     raw = resp.choices[0].message.content or ""

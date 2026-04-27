@@ -55,6 +55,30 @@ async def _http_get_with_retry(
     raise RuntimeError("PubMed: retries esgotados sem resposta")
 
 
+async def count_results(query: str, *, timeout: float = 15.0) -> int:
+    """Roda só o esearch e devolve `count` — barato, 1 HTTP request, sem efetch.
+
+    Usado para pré-validar search strings antes de comprometer tempo/$ com a
+    coleta completa: se o LLM gerou uma string que retorna 0, descobrimos
+    em 1 segundo e descartamos sem rodar efetch nem chamar SciELO/Scholar.
+
+    Retorna -1 se a chamada falhar (caller decide o fallback).
+    """
+    api_key = os.getenv("NCBI_API_KEY")
+    headers = {"User-Agent": USER_AGENT}
+    params = {"db": "pubmed", "term": query, "retmax": "0", "retmode": "json"}
+    if api_key:
+        params["api_key"] = api_key
+    try:
+        async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
+            r = await _http_get_with_retry(client, f"{BASE}/esearch.fcgi", params,
+                                            max_attempts=2)
+            data = r.json()
+        return int(data.get("esearchresult", {}).get("count", 0))
+    except Exception:
+        return -1
+
+
 async def search(
     query: str,
     *,

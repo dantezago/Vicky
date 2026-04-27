@@ -56,11 +56,10 @@ def get_or_create_for_user(user_id: int, *, name: str | None = None,
             return _row_to_ws(row)
         u = conn.execute("SELECT name FROM users WHERE id=?", (user_id,)).fetchone()
         ws_name = name or f"Workspace de {u['name'] if u else 'usuário'}"
-        cur = conn.execute(
+        new_id = conn.execute_returning_id(
             "INSERT INTO workspaces (name, owner_user_id, openrouter_model) VALUES (?, ?, ?)",
             (ws_name, user_id, default_model),
         )
-        new_id = cur.lastrowid
         return _row_to_ws(
             conn.execute("SELECT * FROM workspaces WHERE id=?", (new_id,)).fetchone()
         )

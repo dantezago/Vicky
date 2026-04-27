@@ -160,7 +160,7 @@ def llm_usage_avg_per_project_by_review_type() -> dict[str, Any]:
             FROM projects p
             JOIN llm_usage u ON u.project_id = p.id
             GROUP BY p.id
-        )
+        ) sub
         GROUP BY review_type
     """
     sql_all = """
@@ -176,7 +176,7 @@ def llm_usage_avg_per_project_by_review_type() -> dict[str, Any]:
             FROM projects p
             JOIN llm_usage u ON u.project_id = p.id
             GROUP BY p.id
-        )
+        ) sub
     """
     out: dict[str, dict] = {
         "systematic_review": {"n_projects": 0, "avg_tokens": 0, "avg_cost": 0,
@@ -217,15 +217,17 @@ def pipeline_duration_avg_by_review_type() -> dict[str, Any]:
     de cada bucket. Retorna duração em segundos.
     """
     sql_per_project = """
-        SELECT p.id,
-               COALESCE(p.review_type, 'systematic_review') AS review_type,
-               (CAST(strftime('%s', MAX(j.finished_at)) AS INTEGER) -
-                CAST(strftime('%s', MIN(j.started_at)) AS INTEGER)) AS duration_sec
-        FROM projects p
-        JOIN jobs j ON j.project_id = p.id
-        WHERE j.started_at IS NOT NULL AND j.finished_at IS NOT NULL
-        GROUP BY p.id
-        HAVING duration_sec IS NOT NULL AND duration_sec > 0
+        SELECT id, review_type, duration_sec FROM (
+            SELECT p.id,
+                   COALESCE(p.review_type, 'systematic_review') AS review_type,
+                   (CAST(strftime('%s', MAX(j.finished_at)) AS INTEGER) -
+                    CAST(strftime('%s', MIN(j.started_at)) AS INTEGER)) AS duration_sec
+            FROM projects p
+            JOIN jobs j ON j.project_id = p.id
+            WHERE j.started_at IS NOT NULL AND j.finished_at IS NOT NULL
+            GROUP BY p.id, p.review_type
+        ) sub
+        WHERE duration_sec IS NOT NULL AND duration_sec > 0
     """
     out: dict[str, dict] = {
         "systematic_review": {"n_projects": 0, "avg_seconds": 0.0},
@@ -288,13 +290,22 @@ class PageResult:
     total_pages: int
 
 
-# Decisão efetiva = override do usuário > decisão da IA
+# Decisão efetiva: override manual do usuário > double-check (quando discordou) > decisão da IA.
+# Antes só considerava ud.decision e an.decision — DC ficava como flag inerte mesmo
+# quando virava o veredicto (auditoria sem efeito = mitigação de falso-negativo perdida).
+# Agora dc.final_decision é consultado quando dc.agrees=0 (DC discordou da IA).
 EFFECTIVE_JOIN = """
     LEFT JOIN analyses an ON an.project_id=a.project_id AND an.source=a.source AND an.external_id=a.external_id
+    LEFT JOIN double_checks dc ON dc.project_id=a.project_id AND dc.source=a.source AND dc.external_id=a.external_id
     LEFT JOIN user_decisions ud ON ud.project_id=a.project_id AND ud.source=a.source AND ud.external_id=a.external_id
 """
 
-EFFECTIVE_DECISION_SQL = "COALESCE(ud.decision, an.decision)"
+EFFECTIVE_DECISION_SQL = (
+    "COALESCE(ud.decision, "
+    "         CASE WHEN dc.agrees=0 AND dc.final_decision IS NOT NULL "
+    "              THEN dc.final_decision ELSE NULL END, "
+    "         an.decision)"
+)
 
 
 def get_workspace_dashboard(ws_id: int) -> dict[str, Any]:
@@ -380,7 +391,7 @@ def get_project_dashboard(project_id: int) -> dict[str, Any]:
                   WHERE a.project_id=? AND a.is_duplicate=0
                     AND {EFFECTIVE_DECISION_SQL}='include'
                     AND an.quality_score IS NOT NULL
-                  ORDER BY an.quality_score DESC LIMIT 40)""",
+                  ORDER BY an.quality_score DESC LIMIT 40) sub""",
             (project_id,),
         ).fetchone()[0]
 
@@ -486,17 +497,17 @@ def search_records(
 
 def get_record_detail(project_id: int, source: str, external_id: str) -> dict | None:
     with connect() as conn:
+        # EFFECTIVE_JOIN já traz `dc` (double_checks) — não duplicar o JOIN aqui.
         row = conn.execute(
             f"""SELECT a.*, an.decision AS ai_decision, an.reason, an.summary_pt,
                        an.criteria_matched, an.criteria_violated,
                        an.quality_score, an.score_breakdown,
-                       COALESCE(an.in_top_n, 1) AS in_top_n,
+                       COALESCE(an.in_top_n, 0) AS in_top_n,
                        dc.agrees, dc.final_decision, dc.explanation,
                        ud.decision AS user_decision, ud.note AS user_note,
                        ud.decided_at AS user_decided_at,
                        {EFFECTIVE_DECISION_SQL} AS decision
                 FROM articles a {EFFECTIVE_JOIN}
-                LEFT JOIN double_checks dc ON dc.project_id=a.project_id AND dc.source=a.source AND dc.external_id=a.external_id
                 WHERE a.project_id=? AND a.source=? AND a.external_id=?""",
             (project_id, source, external_id),
         ).fetchone()

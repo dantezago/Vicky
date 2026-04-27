@@ -217,7 +217,7 @@ def register_routes(app: FastAPI) -> None:
                       email: Annotated[str, Form()],
                       senha: Annotated[str, Form()],
                       confirmar_senha: Annotated[str, Form()]):
-        import sqlite3
+        from .. import db as _db
         nome = nome.strip()
         email_norm = email.strip().lower()
         ctx = {"nome": nome, "email": email_norm}
@@ -231,8 +231,10 @@ def register_routes(app: FastAPI) -> None:
             return render(request, "signup.html", {**ctx, "error": "As senhas não coincidem."})
         try:
             u = users.create_user(email=email_norm, password=senha, name=nome, role="operacional")
-        except sqlite3.IntegrityError:
-            return render(request, "signup.html", {**ctx, "error": "Este e-mail já está cadastrado."})
+        except Exception as exc:
+            if _db.is_unique_violation(exc):
+                return render(request, "signup.html", {**ctx, "error": "Este e-mail já está cadastrado."})
+            raise
         resp = RedirectResponse("/dashboard", status_code=303)
         _set_session(resp, request.app, u)
         return resp
@@ -673,13 +675,16 @@ def register_routes(app: FastAPI) -> None:
 
     @app.get("/workspace", response_class=HTMLResponse)
     def workspace_page(request: Request,
-                       user: Annotated[User, Depends(require_perm("manage_users"))],
+                       user: Annotated[User, Depends(require_perm("view_records"))],
                        ws: Annotated[Workspace, Depends(get_current_workspace)]):
+        # Cada user tem workspace 1:1 (via get_current_workspace), então qualquer
+        # logado pode ver as configurações DO PRÓPRIO workspace. Save é
+        # restrito a roles que editam (edit_records: admin/operacional).
         return render(request, "workspace_settings.html", {})
 
     @app.post("/workspace")
     def workspace_update(request: Request,
-                         user: Annotated[User, Depends(require_perm("manage_users"))],
+                         user: Annotated[User, Depends(require_perm("edit_records"))],
                          ws: Annotated[Workspace, Depends(get_current_workspace)],
                          name: Annotated[str, Form()] = "",
                          rayyan_email: Annotated[str, Form()] = "",

@@ -805,7 +805,8 @@ async def _step_expand_search(project_id: int, workspace_id: int, project,
 
     topic = project.topic
     yw = project.years_window
-    expansions = _build_expansion_queries(topic, iteration, yw)
+    llm_pubmed_q = (project.search_strings or {}).get("pubmed", "")
+    expansions = _build_expansion_queries(topic, iteration, yw, llm_pubmed_q)
 
     total_added = 0
     for source in project.sources:
@@ -836,8 +837,87 @@ async def _step_expand_search(project_id: int, workspace_id: int, project,
     _job_done(job_id, message=f"Expansão iter {iteration}: +{total_added} artigos brutos")
 
 
-def _build_expansion_queries(topic: str, iteration: int, yw: int) -> dict[str, str]:
-    """Gera queries cada vez mais amplas para cada source."""
+def _extract_english_keyword_groups(llm_pubmed_query: str | None) -> list[list[str]]:
+    """Extrai GRUPOS de sinônimos da search string LLM, preservando estrutura semântica.
+
+    O LLM tipicamente devolve `(syn1 OR syn2 OR syn3) AND (syn4 OR syn5) AND filtro_ano`.
+    Cada grupo de parens é um conceito; dentro do grupo são sinônimos.
+    Usamos isso pra montar expansão como `(syn1 OR syn2) AND (syn4 OR syn5)` — formato
+    correto de PubMed. Importante: AND entre sinônimos retorna 0 (são exclusivos);
+    OR entre sinônimos é o que gera resultados.
+
+    Retorna lista de listas (cada inner list = grupo de sinônimos do mesmo conceito).
+    Filtros temporais (Date - Publication) e operadores são removidos.
+    """
+    if not llm_pubmed_query:
+        return []
+    import re
+    skip_words = {"AND", "and", "OR", "or", "NOT", "not"}
+    skip_filters = {"date", "publication", "title", "abstract", "mesh", "major",
+                    "topic", "filter", "all", "fields", "type", "ptyp"}
+    groups: list[list[str]] = []
+    # Captura conteúdo de cada grupo de parens em nível superior
+    depth = 0
+    current = []
+    buf = ""
+    for ch in llm_pubmed_query:
+        if ch == "(":
+            if depth == 0:
+                buf = ""
+            else:
+                buf += ch
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                current.append(buf)
+                buf = ""
+            else:
+                buf += ch
+        elif depth > 0:
+            buf += ch
+    # Para cada grupo: remove [filtros], extrai palavras únicas em EN >=4 chars,
+    # descarta o grupo se for filtro de ano (contém "publication")
+    for raw in current:
+        clean = re.sub(r'\[[^\]]*\]', ' ', raw)
+        if any(f in clean.lower() for f in ("publication", "date -")):
+            continue
+        clean = re.sub(r'[\"\']', ' ', clean)
+        tokens = re.findall(r'[A-Za-z][A-Za-z\*-]{2,}', clean)
+        kws = []
+        seen_local: set[str] = set()
+        for t in tokens:
+            if t in skip_words:
+                continue
+            if t.lower() in skip_filters:
+                continue
+            lc = t.lower().rstrip("*").rstrip("-")
+            if lc in seen_local:
+                continue
+            seen_local.add(lc)
+            kws.append(t)
+        if kws:
+            groups.append(kws[:5])
+    return groups[:4]
+
+
+def _extract_english_keywords(llm_pubmed_query: str | None) -> list[str]:
+    """Versão flat de _extract_english_keyword_groups: pega 1 keyword de cada grupo.
+
+    Útil quando precisamos só de 1-2 keywords representativas.
+    """
+    groups = _extract_english_keyword_groups(llm_pubmed_query)
+    return [g[0] for g in groups if g]
+
+
+def _build_expansion_queries(topic: str, iteration: int, yw: int,
+                              llm_pubmed_query: str | None = None) -> dict[str, str]:
+    """Gera queries cada vez mais amplas para cada source.
+
+    `llm_pubmed_query`: search string LLM (em EN) — quando o tema do user está
+    em PT, usamos as keywords EN que o LLM já produziu pra montar queries de
+    PubMed que tenham chance de retornar artigos. Se não houver, cai no tema.
+    """
     import re
     from datetime import date
     cy = date.today().year
@@ -849,30 +929,59 @@ def _build_expansion_queries(topic: str, iteration: int, yw: int) -> dict[str, s
     keep = [w for w in words if w not in stop]
     if not keep:
         keep = words[:5]
+    # Para PubMed (que é EN-dominante), preferimos keywords em inglês extraídas
+    # da própria query LLM já testada. Mantemos `keep` em PT pra SciELO/Scholar.
+    pubmed_groups = _extract_english_keyword_groups(llm_pubmed_query)  # [[syn1,syn2], [syn3,syn4]]
+    keep_pubmed = _extract_english_keywords(llm_pubmed_query) or keep  # flat, 1 por grupo
 
     out = {}
     if iteration == 1:
-        # Iter 1: keywords + janela 7 anos
+        # Iter 1: AND entre conceitos, OR dentro do conceito (sinônimos), janela 7 anos
         sy = cy - 7
-        if len(keep) >= 2:
+        if pubmed_groups and len(pubmed_groups) >= 2:
+            # Forma correta: (syn1 OR syn2) AND (syn3 OR syn4) AND ...
+            concept_clauses = []
+            for grp in pubmed_groups[:3]:
+                concept_clauses.append(
+                    "(" + " OR ".join(f"{w}[Title/Abstract]" for w in grp[:4]) + ")"
+                )
+            out["pubmed"] = (
+                f"{' AND '.join(concept_clauses)} "
+                f"AND (\"{sy}\"[Date - Publication] : \"{cy}\"[Date - Publication])"
+            )
+        elif len(keep) >= 2:
+            # Fallback: tema PT — AND simples
             out["pubmed"] = (f"({' AND '.join(f'\"{w}\"[Title/Abstract]' for w in keep[:5])}) "
                              f"AND (\"{sy}\"[Date - Publication] : \"{cy}\"[Date - Publication])")
+        if len(keep) >= 2:
             out["scielo"] = " AND ".join(keep[:4])
             out["scholar"] = " ".join(f'"{w}"' for w in keep[:3])
     elif iteration == 2:
-        # Iter 2: menos keywords, OR'd
-        if len(keep) >= 2:
-            sy = cy - 7
-            top2 = keep[:2]
-            out["pubmed"] = (f"({top2[0]}[Title/Abstract] OR {top2[1]}[Title/Abstract]) "
+        # Iter 2: dois conceitos só, mais OR aberto, janela 7 anos
+        sy = cy - 7
+        if pubmed_groups and len(pubmed_groups) >= 2:
+            concept_clauses = []
+            for grp in pubmed_groups[:2]:
+                concept_clauses.append(
+                    "(" + " OR ".join(f"{w}[Title/Abstract]" for w in grp[:3]) + ")"
+                )
+            out["pubmed"] = (
+                f"{' AND '.join(concept_clauses)} "
+                f"AND (\"{sy}\"[Date - Publication] : \"{cy}\"[Date - Publication])"
+            )
+        elif len(keep) >= 2 and len(keep_pubmed) >= 2:
+            top2_en = keep_pubmed[:2]
+            out["pubmed"] = (f"({top2_en[0]}[Title/Abstract] OR {top2_en[1]}[Title/Abstract]) "
                              f"AND (\"{sy}\"[Date - Publication] : \"{cy}\"[Date - Publication])")
+        if len(keep) >= 2:
             out["scielo"] = " OR ".join(keep[:3])
             out["scholar"] = " OR ".join(f'"{w}"' for w in keep[:2])
     elif iteration == 3:
         # Iter 3: janela 10 anos + tema cru
         sy = cy - 10
         if keep:
-            out["pubmed"] = (f"({keep[0]}[Title/Abstract]) "
+            kw_en = keep_pubmed[0] if keep_pubmed else keep[0]
+            out["pubmed"] = (f"({kw_en}[Title/Abstract]) "
                              f"AND (\"{sy}\"[Date - Publication] : \"{cy}\"[Date - Publication])")
             out["scielo"] = keep[0]
             out["scholar"] = f'"{keep[0]}"'
@@ -880,18 +989,22 @@ def _build_expansion_queries(topic: str, iteration: int, yw: int) -> dict[str, s
         # Iter 4: keyword principal, janela 15 anos
         sy = cy - 15
         if keep:
-            out["pubmed"] = (f"{keep[0]}[Title/Abstract] "
+            kw_en = keep_pubmed[0] if keep_pubmed else keep[0]
+            out["pubmed"] = (f"{kw_en}[Title/Abstract] "
                              f"AND (\"{sy}\"[Date - Publication] : \"{cy}\"[Date - Publication])")
             out["scielo"] = keep[0]
             out["scholar"] = keep[0]
     elif iteration == 5:
         # Iter 5: kw1 OR kw2, sem filtros
         if len(keep) >= 2:
-            out["pubmed"] = f"{keep[0]}[Title/Abstract] OR {keep[1]}[Title/Abstract]"
+            kw1_en = keep_pubmed[0] if keep_pubmed else keep[0]
+            kw2_en = keep_pubmed[1] if len(keep_pubmed) >= 2 else keep[1]
+            out["pubmed"] = f"{kw1_en}[Title/Abstract] OR {kw2_en}[Title/Abstract]"
             out["scielo"] = f"{keep[0]} OR {keep[1]}"
             out["scholar"] = f"{keep[0]} OR {keep[1]}"
         elif keep:
-            out["pubmed"] = keep[0]
+            kw_en = keep_pubmed[0] if keep_pubmed else keep[0]
+            out["pubmed"] = kw_en
             out["scielo"] = keep[0]
             out["scholar"] = keep[0]
     elif iteration == 6:
@@ -900,10 +1013,12 @@ def _build_expansion_queries(topic: str, iteration: int, yw: int) -> dict[str, s
         out["scielo"] = topic
         out["scholar"] = topic
     else:  # iter 7+: keyword qualquer
-        kw = keep[0] if keep else (words[0] if words else topic.split()[0])
-        out["pubmed"] = kw
-        out["scielo"] = kw
-        out["scholar"] = kw
+        kw_en = keep_pubmed[0] if keep_pubmed else (keep[0] if keep else topic.split()[0])
+        kw_pt = keep[0] if keep else (words[0] if words else topic.split()[0])
+        out["pubmed"] = kw_en
+        out["scielo"] = kw_pt
+        out["scholar"] = kw_pt
+    _ = yw  # parâmetro mantido por compat; janela é decidida por iteração
     return out
 
 
@@ -944,7 +1059,7 @@ async def _step_dedup(project_id: int) -> None:
                 """SELECT LOWER(doi) AS doi_lc, COUNT(*) AS n
                    FROM articles
                    WHERE project_id=? AND doi IS NOT NULL AND doi != ''
-                   GROUP BY LOWER(doi) HAVING n > 1""",
+                   GROUP BY LOWER(doi) HAVING COUNT(*) > 1""",
                 (project_id,),
             ).fetchall()
             for d in dups:
@@ -1252,57 +1367,109 @@ async def _step_expand_years_window(project_id: int, cfg: Config, model: str,
         # Não fatal — pipeline tenta próxima alavanca
 
 
+ROTATE_VALIDATION_RETRIES = 2  # sub-tentativas de rotação se PubMed count==0
+
+
 async def _step_rotate_terms(project_id: int, cfg: Config, model: str,
                              attempt: int) -> None:
     """Troca os termos de pesquisa quando os atuais estão produzindo 0 inclusões.
 
-    Pede ao LLM search strings ALTERNATIVAS (sinônimos, traduções, ângulos diferentes),
-    grava em `project.search_strings`, e dispara nova rodada de search.
+    Pede ao LLM search strings ALTERNATIVAS, **pré-valida via PubMed esearch
+    count** (barato, 1 request, sem efetch). Se o LLM devolver string que vai
+    retornar 0, refaz a rotação até ROTATE_VALIDATION_RETRIES vezes — economiza
+    o tempo e o custo de rodar efetch/scielo/scholar pra termos que sabemos
+    que vão falhar.
+
+    Se mesmo após todas as sub-tentativas a string seguir com count==0, o job
+    termina cedo com mensagem explicativa e SEM rodar a busca completa — o
+    caller (loop principal) detecta a falta de novos artigos e aciona o
+    circuit breaker para pular pra próxima alavanca (expansão programática).
     """
+    from .sources.pubmed import count_results as pubmed_count
+
     job_id = _create_job(project_id, f"rotate_terms_attempt{attempt}")
     try:
         p = projects_module.get(project_id)
         client = make_client(cfg, api_key_override=_api_key_for_project(project_id, cfg))
-        rot = await asyncio.to_thread(
-            rotate_search_strings, client, model,
-            topic=p.topic, previous_strings=p.search_strings or {},
-            attempt=attempt, years_window=p.years_window,
-        )
-        usage_id = record_llm_call(
-            project_id=project_id, pipeline_step="rotate_terms", model=model,
-            prompt_tokens=rot.prompt_tokens,
-            completion_tokens=rot.completion_tokens,
-            duration_ms=rot.duration_ms,
-            extra_metadata={"attempt": attempt},
-            generation_id=rot.generation_id,
-        )
-        _schedule_reconcile(usage_id, rot.generation_id, cfg.openrouter_api_key)
-        new_strings = rot.strings
-        # Mescla: novos termos sobrescrevem, mas mantém antigos como base de comparação
+
+        new_strings: dict[str, str] = {}
+        pubmed_n = -1
+        sub_attempts = 0
+        last_strings = p.search_strings or {}
+        # Loop de sub-rotação: pede strings, valida com PubMed count, retry se 0
+        for sub in range(ROTATE_VALIDATION_RETRIES + 1):
+            sub_attempts = sub + 1
+            rot = await asyncio.to_thread(
+                rotate_search_strings, client, model,
+                topic=p.topic, previous_strings=last_strings,
+                attempt=attempt + sub * 1000,  # diversifica prompt em retries
+                years_window=p.years_window,
+            )
+            usage_id = record_llm_call(
+                project_id=project_id, pipeline_step="rotate_terms", model=model,
+                prompt_tokens=rot.prompt_tokens,
+                completion_tokens=rot.completion_tokens,
+                duration_ms=rot.duration_ms,
+                extra_metadata={"attempt": attempt, "sub_attempt": sub_attempts},
+                generation_id=rot.generation_id,
+            )
+            _schedule_reconcile(usage_id, rot.generation_id, cfg.openrouter_api_key)
+            new_strings = rot.strings
+            pubmed_q = new_strings.get("pubmed", "")
+            if not pubmed_q:
+                # Sem string de PubMed pra validar — aceita como está e segue
+                pubmed_n = -1
+                break
+            pubmed_n = await pubmed_count(pubmed_q)
+            _job_update(
+                job_id,
+                message=f"Sub #{sub_attempts}: PubMed count = {pubmed_n}",
+            )
+            if pubmed_n != 0:
+                # count > 0 OU falhou (-1, deixa caller resolver) → aceita strings
+                break
+            # count == 0 — retry com novas anteriores pra forçar LLM a divergir
+            last_strings = new_strings
+        # Persiste strings (mesmo se count==0, fica registrado pro debug do user)
         projects_module.update(project_id, search_strings=new_strings)
-        # Re-executa search com os novos termos
+
+        if pubmed_n == 0:
+            # Pré-validação rejeitou: não vale rodar efetch + scielo + scholar
+            _job_done(
+                job_id,
+                message=(f"Rotação #{attempt}: termos rejeitados após {sub_attempts} "
+                         f"sub-tentativas — PubMed count=0 (LLM gerou strings hiperespecíficas, "
+                         f"pulando busca cara)"),
+            )
+            return
+
         for source in p.sources:
             if source not in REGISTRY:
                 continue
             await _step_search(project_id, p.workspace_id, source,
                                new_strings.get(source, p.topic))
         await _step_dedup(project_id)
-        _job_done(job_id, message=f"Rotação #{attempt}: termos trocados e nova busca executada")
+        suffix = f" (validado: PubMed count={pubmed_n})" if pubmed_n > 0 else ""
+        _job_done(job_id,
+                  message=f"Rotação #{attempt}: termos trocados e nova busca executada{suffix}")
     except Exception as e:
         _job_fail(job_id, e)
-        # Erros fatais de LLM (sem créditos, chave inválida) abortam o pipeline
         if _is_llm_fatal_error(e):
             raise LLMUnavailableError("Sem créditos") from e
-        # Erros não-fatais (ex: source temporariamente fora) são logados mas não param tudo
 
 
 async def _step_finalize(project_id: int, target: int) -> None:
-    """Aplica o cutoff por quality_score.
+    """Aplica o cutoff por quality_score usando a DECISÃO EFETIVA.
 
-    Marca como `in_top_n=1` os top N (ordenados por quality_score DESC) entre os incluídos.
-    Marca como `in_top_n=0` o resto. Excluídos não são tocados.
+    A decisão efetiva considera, em ordem de precedência:
+      1. user override (user_decisions.decision)
+      2. double-check final_decision quando dc.agrees=0 (DC discordou da IA)
+      3. analyses.decision (1ª passada do LLM)
 
-    GARANTIA: nunca promove artigo que a IA marcou como exclude.
+    Marca como `in_top_n=1` os top N (ordenados por quality_score DESC) entre os
+    artigos com decisão efetiva = 'include'. Marca como `in_top_n=0` o resto.
+
+    GARANTIA: nunca promove artigo cuja decisão efetiva seja 'exclude'/'uncertain'.
     GARANTIA: nunca marca mais que `target` como in_top_n=1.
     """
     job_id = _create_job(project_id, "finalize")
@@ -1311,12 +1478,27 @@ async def _step_finalize(project_id: int, target: int) -> None:
             # Reset
             conn.execute(
                 "UPDATE analyses SET in_top_n=0 WHERE project_id=?", (project_id,))
-            # Pega ids dos incluídos ordenados por score DESC
+            # Pega ids dos incluídos por DECISÃO EFETIVA, ordenados por score DESC
             top_rows = conn.execute(
-                """SELECT source, external_id FROM analyses
-                   WHERE project_id=? AND decision='include'
-                   ORDER BY quality_score DESC NULLS LAST,
-                            analyzed_at ASC LIMIT ?""",
+                """SELECT an.source, an.external_id
+                   FROM analyses an
+                   LEFT JOIN double_checks dc
+                     ON dc.project_id=an.project_id
+                    AND dc.source=an.source
+                    AND dc.external_id=an.external_id
+                   LEFT JOIN user_decisions ud
+                     ON ud.project_id=an.project_id
+                    AND ud.source=an.source
+                    AND ud.external_id=an.external_id
+                   WHERE an.project_id=?
+                     AND COALESCE(
+                         ud.decision,
+                         CASE WHEN dc.agrees=0 AND dc.final_decision IS NOT NULL
+                              THEN dc.final_decision ELSE NULL END,
+                         an.decision
+                     ) = 'include'
+                   ORDER BY an.quality_score DESC NULLS LAST,
+                            an.analyzed_at ASC LIMIT ?""",
                 (project_id, target),
             ).fetchall()
             # Marca os top como in_top_n=1
@@ -1326,12 +1508,25 @@ async def _step_finalize(project_id: int, target: int) -> None:
                        WHERE project_id=? AND source=? AND external_id=?""",
                     (project_id, r["source"], r["external_id"]),
                 )
-            # Conta resultado
-            n_top = conn.execute(
-                "SELECT COUNT(*) FROM analyses WHERE project_id=? AND decision='include' AND in_top_n=1",
-                (project_id,)).fetchone()[0]
+            # Conta resultado (efetivo)
+            n_top = len(top_rows)
             n_below = conn.execute(
-                "SELECT COUNT(*) FROM analyses WHERE project_id=? AND decision='include' AND in_top_n=0",
+                """SELECT COUNT(*) FROM analyses an
+                   LEFT JOIN double_checks dc
+                     ON dc.project_id=an.project_id
+                    AND dc.source=an.source
+                    AND dc.external_id=an.external_id
+                   LEFT JOIN user_decisions ud
+                     ON ud.project_id=an.project_id
+                    AND ud.source=an.source
+                    AND ud.external_id=an.external_id
+                   WHERE an.project_id=? AND in_top_n=0
+                     AND COALESCE(
+                         ud.decision,
+                         CASE WHEN dc.agrees=0 AND dc.final_decision IS NOT NULL
+                              THEN dc.final_decision ELSE NULL END,
+                         an.decision
+                     ) = 'include'""",
                 (project_id,)).fetchone()[0]
         _job_done(job_id, message=f"Top {n_top} marcado · {n_below} incluídos abaixo do corte")
     except Exception as e:

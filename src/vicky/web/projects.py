@@ -53,7 +53,7 @@ def create(*, workspace_id: int, topic: str, objective: str | None = None,
     if review_type not in ("systematic_review", "narrative_review"):
         review_type = "systematic_review"
     with connect() as conn:
-        cur = conn.execute(
+        new_id = conn.execute_returning_id(
             """INSERT INTO projects (workspace_id, topic, objective, years_window,
                                      target_articles, review_type, sources, status, created_by)
                VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?)""",
@@ -61,7 +61,7 @@ def create(*, workspace_id: int, topic: str, objective: str | None = None,
              review_type, ",".join(sources), created_by),
         )
         return _row_to_project(
-            conn.execute("SELECT * FROM projects WHERE id=?", (cur.lastrowid,)).fetchone()
+            conn.execute("SELECT * FROM projects WHERE id=?", (new_id,)).fetchone()
         )
 
 
