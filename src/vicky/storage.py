@@ -570,13 +570,16 @@ def upsert_article(conn: sqlite3.Connection, *, workspace_id: int, project_id: i
 
 def insert_analysis(conn, project_id: int,
                     a: Analysis, raw_response: str) -> None:
+    # in_top_n=0 explícito: a coluna tem DEFAULT 1 (legado), mas só finalize
+    # tem direito de promover. Sem esta linha, excludes inseridos antes do
+    # finalize ficavam com in_top_n=1 e poluíam queries de Top N.
     conn.execute(
         """
         INSERT INTO analyses
         (project_id, source, external_id, decision, reason, summary_pt,
          criteria_matched, criteria_violated, quality_score, score_breakdown,
-         model, raw_response)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         in_top_n, model, raw_response)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
         ON CONFLICT (project_id, source, external_id) DO UPDATE SET
             decision=excluded.decision, reason=excluded.reason,
             summary_pt=excluded.summary_pt,

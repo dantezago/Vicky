@@ -675,13 +675,16 @@ def register_routes(app: FastAPI) -> None:
 
     @app.get("/workspace", response_class=HTMLResponse)
     def workspace_page(request: Request,
-                       user: Annotated[User, Depends(require_perm("manage_users"))],
+                       user: Annotated[User, Depends(require_perm("view_records"))],
                        ws: Annotated[Workspace, Depends(get_current_workspace)]):
+        # Cada user tem workspace 1:1 (via get_current_workspace), então qualquer
+        # logado pode ver as configurações DO PRÓPRIO workspace. Save é
+        # restrito a roles que editam (edit_records: admin/operacional).
         return render(request, "workspace_settings.html", {})
 
     @app.post("/workspace")
     def workspace_update(request: Request,
-                         user: Annotated[User, Depends(require_perm("manage_users"))],
+                         user: Annotated[User, Depends(require_perm("edit_records"))],
                          ws: Annotated[Workspace, Depends(get_current_workspace)],
                          name: Annotated[str, Form()] = "",
                          rayyan_email: Annotated[str, Form()] = "",

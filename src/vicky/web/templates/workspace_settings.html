@@ -91,11 +91,15 @@
         </div>
       </div>
 
+      {% if user.can("edit_records") %}
       <div class="flex justify-end pt-2">
         <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-5 py-2.5 transition shadow-sm">
           Salvar configurações
         </button>
       </div>
+      {% else %}
+      <p class="text-xs text-slate-500 italic pt-2">Sua role atual ({{ user.role }}) não permite editar estas configurações.</p>
+      {% endif %}
     </form>
   </div>
 

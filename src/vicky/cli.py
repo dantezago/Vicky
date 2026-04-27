@@ -238,6 +238,42 @@ def list_workspaces() -> None:
     console.print(table)
 
 
+@app.command(name="test-search")
+def test_search(
+    query: str = typer.Argument(..., help="Search string a testar (use aspas no shell)"),
+    source: str = typer.Option("pubmed", help="pubmed|scielo|scholar (default pubmed)"),
+) -> None:
+    """Testa rapidamente quantos resultados uma search string retorna.
+
+    Útil pra validar termos antes de rodar pipeline completo, ou pra debug
+    quando rotação de termos vem voltando 0 e a gente quer entender por quê.
+    """
+    import asyncio
+    _load_config()
+    if source == "pubmed":
+        from .sources.pubmed import count_results
+        n = asyncio.run(count_results(query))
+        if n < 0:
+            console.print("[red]erro de rede ao consultar PubMed[/red]")
+        else:
+            console.print(f"[bold]PubMed:[/bold] {n} resultados")
+            if n == 0:
+                console.print("[yellow]⚠ string vai gerar 0 artigos — termos hiperespecíficos[/yellow]")
+    elif source in ("scielo", "scholar"):
+        from .sources import REGISTRY
+        scraper = REGISTRY.get(source)
+        if not scraper:
+            console.print(f"[red]source desconhecida: {source}[/red]")
+            raise typer.Exit(1)
+        results = asyncio.run(scraper.search(query, max_results=10))
+        console.print(f"[bold]{source}:[/bold] {len(results)} resultados (limit 10)")
+        for art, _ in results[:5]:
+            console.print(f"  · {art.title[:90]}")
+    else:
+        console.print(f"[red]source inválida: {source}[/red]")
+        raise typer.Exit(1)
+
+
 @app.command()
 def serve(
     host: str = typer.Option("127.0.0.1", help="Host para escutar (use 0.0.0.0 para LAN)."),

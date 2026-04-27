@@ -195,14 +195,15 @@ def translate_sql_pg(sql: str) -> str:
         "to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')", sql
     )
     sql = _RE_UNACCENT.sub("unaccent_ci(", sql)
-    # Placeholder: ? → %s. % literal vira %% pra escapar do paramstyle pyformat.
+    # Placeholder: ? → %s. % literal vira %% pra escapar do paramstyle pyformat,
+    # inclusive dentro de strings (LIKE 'foo%' precisa virar LIKE 'foo%%').
     out_chars: list[str] = []
     in_squote = False
     for ch in sql:
         if ch == "'":
             in_squote = not in_squote
             out_chars.append(ch)
-        elif ch == "%" and not in_squote:
+        elif ch == "%":
             out_chars.append("%%")
         elif ch == "?" and not in_squote:
             out_chars.append("%s")
