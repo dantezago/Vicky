@@ -94,7 +94,7 @@
     </div>
   </div>
   {% if both.n_projects == 0 %}
-  <p class="text-[11px] text-slate-400 mt-3">Nenhum projeto com chamadas LLM registradas ainda — rode um pipeline e os dados aparecerão aqui.</p>
+  <p class="text-[11px] text-slate-400 mt-3">Nenhum projeto com chamadas LLM registradas ainda. Rode um pipeline e os dados aparecerão aqui.</p>
   {% endif %}
 </div>
 {% endif %}
@@ -128,7 +128,7 @@
               <span class="text-slate-400 vk-mono text-[10px] mr-1">#{{ p.id }}</span>{{ (p.topic or "(sem título)")[:60] }}{% if (p.topic or '')|length > 60 %}…{% endif %}
             </a>
             {% else %}
-            <span class="text-slate-400 italic">— (chamada avulsa)</span>
+            <span class="text-slate-400 italic">(chamada avulsa)</span>
             {% endif %}
           </td>
           <td class="px-2">

@@ -6,7 +6,7 @@
 <div x-data="pipelineBanner(window.__pipelineBannerArgs_{{ project_id }}.projectId, window.__pipelineBannerArgs_{{ project_id }}.initialStatus, window.__pipelineBannerArgs_{{ project_id }}.initialJobs)"
      x-show="visible"
      x-cloak
-     class="sticky top-0 z-40 bg-gradient-to-r from-brand-600 via-brand-700 to-brand-600 text-white shadow-lg border-b border-brand-800"
+     class="lg:sticky lg:top-16 z-30 bg-gradient-to-r from-brand-600 via-brand-700 to-brand-600 text-white shadow-lg border-b border-brand-800"
      x-transition>
   <div class="px-4 sm:px-6 lg:px-10 py-4 sm:py-5">
     <!-- Linha 1: Spinner + título principal + tempo -->
@@ -52,10 +52,9 @@
           <span class="opacity-95">
             ⏱️ <strong>Tempo médio: cerca de 20 minutos.</strong>
             Estamos varrendo centenas de artigos, aplicando critérios PICO em <strong>duas passadas independentes</strong>
-            e calibrando a busca em tempo real. É um trabalho minucioso —
-            a profundidade da triagem é o que garante um Top final confiável e auditável.
+            e calibrando a busca em tempo real. É um trabalho minucioso, e essa profundidade é o que garante um Top final confiável e auditável.
             <span class="opacity-80">Pode deixar rodando que avisamos quando terminar.</span>
-            <span class="block mt-1.5 font-semibold">⚠️ Não feche esta aba enquanto o pipeline estiver rodando — fechar interrompe o processo.</span>
+            <span class="block mt-1.5 font-semibold">⚠️ Não feche esta aba enquanto o pipeline estiver rodando, porque fechar interrompe o processo.</span>
           </span>
         </div>
       </div>

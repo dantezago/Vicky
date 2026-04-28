@@ -322,6 +322,32 @@ summary::marker { content: ""; }
 /* Force inputs/textareas to use DM Sans (Tailwind forms plugin sometimes overrides) */
 input, textarea, select, button { font-family: inherit; }
 
+/* ─── Mobile viewport / safe-area helpers ─────────────
+   - .vk-app-shell usa 100dvh (dynamic viewport height) pra acompanhar a barra
+     que aparece/some no Safari iOS. min-h-screen (=100vh) "vaza" pra debaixo
+     da chrome do navegador, escondendo botões no rodapé.
+   - .vk-pb-safe garante padding adicional pelo home indicator do iPhone.
+   - Tudo com fallback pra navegadores sem suporte.
+   ────────────────────────────────────────────────────── */
+.vk-app-shell {
+  min-height: 100vh;            /* fallback */
+  min-height: 100svh;           /* small viewport: respeita o estado mais comprimido */
+  min-height: 100dvh;           /* dynamic: acompanha o resize da chrome */
+}
+.vk-pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.vk-pb-safe-plus {
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}
+.vk-mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* Bottom action bar fixa em mobile com safe-area integrada */
+.vk-mobile-bottom-bar {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
 /* Scrollbar refinement em listas longas */
 .vk-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
 .vk-scrollbar::-webkit-scrollbar-track { background: transparent; }

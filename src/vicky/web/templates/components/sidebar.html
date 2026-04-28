@@ -1,23 +1,48 @@
-{# Sidebar híbrida: drawer fixed no mobile (controlado por Alpine `mobileMenu`),
-   sidebar fixa no desktop. Estado vem do app_layout.html (x-data root). #}
+{# Sidebar híbrida (mobile-first):
+   - Mobile (<lg): drawer FIXED com transform offscreen quando fechado.
+     Usa display:none por classe quando fechado pra eliminar QUALQUER chance
+     de empurrar o conteúdo. CSS transform fica como animação de abertura.
+   - Desktop (lg+): bloco estático na largura w-64.
+   Estado: `mobileMenu` (Alpine root no app_layout). #}
+
+{# Backdrop — só renderiza quando aberto E em mobile #}
 <div x-show="mobileMenu" x-cloak @click="mobileMenu=false"
-     class="lg:hidden fixed inset-0 bg-slate-900/50 z-40"
+     class="lg:hidden fixed inset-0 bg-slate-900/60 z-40"
      x-transition:enter="transition ease-out duration-200"
      x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
      x-transition:leave="transition ease-in duration-150"
-     x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
+     x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+</div>
 
-<aside class="flex w-64 shrink-0 flex-col bg-white border-r border-slate-200/80 relative
-              fixed inset-y-0 left-0 z-50 -translate-x-full transition-transform duration-200
-              lg:translate-x-0 lg:static lg:z-auto"
-       :class="{'translate-x-0': mobileMenu}"
-       @click.stop>
-  <!-- Decoração suave de fundo (mesh sutil pra dar profundidade) -->
+{# A sidebar tem 2 modos via classes condicionais Alpine — o `lg:relative` garante
+   que em desktop ela volte ao fluxo (sai do `fixed`), e o `lg:translate-x-0`
+   neutraliza o transform do drawer.
+   Importante: `flex-col` é seguro mesmo com `fixed`/`relative` ambos
+   alternantes — não causa overflow porque a position vence o `display`. #}
+<aside id="vk-sidebar"
+       class="vk-sidebar fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200/80
+              transform -translate-x-full transition-transform duration-200 ease-out
+              flex flex-col
+              lg:relative lg:translate-x-0 lg:transition-none lg:flex lg:shrink-0"
+       :class="{ 'translate-x-0 shadow-2xl': mobileMenu }"
+       @click.stop
+       aria-label="Navegação principal">
+
+  {# Botão fechar — só visível no mobile drawer #}
+  <button @click="mobileMenu = false" type="button"
+          class="lg:hidden absolute top-3 right-3 inline-flex items-center justify-center h-9 w-9 rounded-md hover:bg-slate-100 text-slate-500"
+          aria-label="Fechar menu">
+    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+    </svg>
+  </button>
+
+  {# Decoração: confinada por overflow do parent #}
   <div class="absolute top-0 left-0 right-0 h-32 pointer-events-none opacity-50"
        style="background: radial-gradient(ellipse at top, rgba(244, 114, 182, 0.08), transparent 70%);"></div>
 
   <div class="px-6 py-6 border-b border-slate-100 relative">
-    <a href="/dashboard" class="flex items-center gap-3 group">
+    <a href="/dashboard" class="flex items-center gap-3 group" @click="mobileMenu = false">
       <span class="inline-flex h-10 w-10 items-center justify-center rounded-[12px] bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-brand-sm transition-transform group-hover:scale-105"
             style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 18px; box-shadow: 0 6px 18px -4px rgba(236,72,153,0.42), inset 0 1px 0 rgba(255,255,255,0.25);">V</span>
       <div class="leading-tight">
@@ -27,7 +52,7 @@
     </a>
   </div>
 
-  <nav class="flex-1 px-3 py-5 space-y-0.5 text-sm relative">
+  <nav class="flex-1 px-3 py-5 space-y-0.5 text-sm relative overflow-y-auto">
     <div class="px-3 mb-3 vk-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Navegar</div>
     {% set nav = [
       ("/dashboard", "Dashboard", "M3 12l2-2 4 4 8-8 4 4M3 21h18", "view_records"),
@@ -39,7 +64,7 @@
     {% for path, label, icon, perm in nav %}
       {% if not perm or (user and user.can(perm)) %}
         {% set is_active = active_path == path or active_path.startswith(path + '/') %}
-        <a href="{{ path }}"
+        <a href="{{ path }}" @click="mobileMenu = false"
            class="relative flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all
                   {% if is_active %}
                     bg-gradient-to-r from-brand-50 to-brand-50/40 text-brand-700 font-semibold
@@ -49,7 +74,7 @@
           {% if is_active %}
           <span class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r bg-gradient-to-b from-brand-500 to-brand-700"></span>
           {% endif %}
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px] {% if is_active %}text-brand-600{% else %}text-slate-400 group-hover:text-slate-600{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px] {% if is_active %}text-brand-600{% else %}text-slate-400{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
             <path stroke-linecap="round" stroke-linejoin="round" d="{{ icon }}" />
           </svg>
           <span>{{ label }}</span>

@@ -84,7 +84,7 @@
                  placeholder="{% if workspace.has_own_api_key %}deixe em branco para manter, digite '__clear__' para apagar{% else %}sk-or-v1-...{% endif %}">
           <p class="mt-1.5 text-xs text-slate-500 leading-relaxed">
             <strong class="text-slate-700">Por que isso importa:</strong> sem chave própria, seu pipeline divide o rate-limit
-            do OpenRouter com todos os outros usuários do servidor — quando alguém roda outro pipeline ao mesmo tempo,
+            do OpenRouter com todos os outros usuários do servidor. Quando alguém roda outro pipeline ao mesmo tempo,
             o seu fica mais lento. Com chave própria, você usa <strong>sua quota privada</strong> e ninguém te atrasa.
             Pegue uma em <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" class="text-brand-600 hover:text-brand-700 underline">openrouter.ai/keys</a>.
           </p>
