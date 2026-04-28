@@ -26,7 +26,6 @@
       {% set mat_label = {'high':'maturidade alta','moderate':'maturidade moderada','emerging':'tema emergente'} %}
       <span class="inline-flex items-center gap-1 rounded-md bg-slate-50 text-slate-600 text-[11px] font-medium px-2 py-1 border border-slate-200" title="Maturidade detectada pela Vicky. Ajusta os pesos do score metodológico.">✦ {{ mat_label.get(p.topic_maturity, p.topic_maturity) }}</span>
     {% endif %}
-    {% for s in p.sources %}{{ source_badge(s) }}{% endfor %}
   </div>
   <div class="flex items-center gap-2 flex-wrap">
     <a href="/projetos/{{ p.id }}/registros" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium shadow-sm">
@@ -622,10 +621,6 @@
                   <th class="py-2 pr-2">Source</th>
                   <th class="pr-2">#</th>
                   <th class="pr-2">String</th>
-                  <th class="pr-2">Status</th>
-                  <th class="pr-2 text-right">Coletados</th>
-                  <th class="pr-2 text-right">Analisados</th>
-                  <th class="pr-2 text-right">Incluídos</th>
                   <th class="text-right">Taxa</th>
                 </tr>
               </thead>
@@ -637,20 +632,6 @@
                     <td class="pr-2 max-w-md">
                       <div class="line-clamp-2 text-slate-700 vk-mono text-[10px]" :title="r.string_text" x-text="r.string_text"></div>
                     </td>
-                    <td class="pr-2">
-                      <template x-if="r.status === 'active' && r.expanded === 1">
-                        <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-medium px-2 py-0.5">★ winner 2×</span>
-                      </template>
-                      <template x-if="r.status === 'active' && r.expanded !== 1">
-                        <span class="inline-flex items-center rounded-full bg-blue-50 text-blue-700 text-[10px] font-medium px-2 py-0.5">ativa</span>
-                      </template>
-                      <template x-if="r.status === 'burned'">
-                        <span class="inline-flex items-center rounded-full bg-slate-200 text-slate-600 text-[10px] font-medium px-2 py-0.5">queimada</span>
-                      </template>
-                    </td>
-                    <td class="pr-2 text-right tabular-nums" x-text="r.collected_count"></td>
-                    <td class="pr-2 text-right tabular-nums" x-text="r.analyzed_count"></td>
-                    <td class="pr-2 text-right tabular-nums font-semibold" x-text="r.included_count"></td>
                     <td class="text-right tabular-nums"
                         :class="r.inclusion_rate === null ? 'text-slate-400' : (r.inclusion_rate >= 0.05 ? 'text-emerald-700 font-semibold' : 'text-slate-600')"
                         x-text="r.inclusion_rate === null ? '—' : (Math.round(r.inclusion_rate * 1000) / 10) + '%'"></td>

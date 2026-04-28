@@ -8,6 +8,8 @@
 {% block page_title %}Registros{% endblock %}
 {% block page_subtitle %}<p class="text-xs text-slate-500 mt-1 line-clamp-1 max-w-3xl">{{ p.topic }}</p>{% endblock %}
 
+{% block smart_back %}{% endblock %}
+
 {% block content %}
 
 <div class="mb-4">
@@ -127,9 +129,11 @@
 
 <div class="bg-white rounded-xl border border-slate-200/70 shadow-card overflow-hidden">
   {% if result.items %}
+  {% set current_url = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+  {% set back_q = '?back=' ~ (current_url|urlencode) %}
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
-      <thead class="bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
+      <thead class="hidden sm:table-header-group bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
         <tr>
           <th class="px-4 py-3 text-left w-16">Score</th>
           <th class="px-4 py-3 text-left w-20">Fonte</th>
@@ -142,19 +146,29 @@
       <tbody class="divide-y divide-slate-100">
         {% for r in result.items %}
         <tr class="hover:bg-slate-50/60 transition">
-          <td class="px-4 py-3 align-top">{{ score_pill(r.quality_score) }}</td>
-          <td class="px-4 py-3 align-top">{{ source_badge(r.source) }}</td>
-          <td class="px-4 py-3 align-top text-slate-700 tabular-nums">{{ r.year or "—" }}</td>
-          <td class="px-4 py-3 align-top">
-            <a href="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}" class="block text-slate-900 font-medium hover:text-brand-700 line-clamp-2">{{ r.title }}</a>
-            {% if r.authors %}<div class="text-xs text-slate-500 mt-0.5 line-clamp-1">{{ r.authors }}</div>{% endif %}
-            {% if r.journal %}<div class="text-xs text-slate-400 mt-0.5 italic line-clamp-1">{{ r.journal }}</div>{% endif %}
+          <td class="hidden sm:table-cell px-4 py-3 align-top">{{ score_pill(r.quality_score) }}</td>
+          <td class="hidden sm:table-cell px-4 py-3 align-top">{{ source_badge(r.source) }}</td>
+          <td class="hidden sm:table-cell px-4 py-3 align-top text-slate-700 tabular-nums">{{ r.year or "—" }}</td>
+          <td class="px-3 sm:px-4 py-3 align-top">
+            <div class="flex items-center gap-2 mb-2 flex-wrap sm:hidden">
+              {{ score_pill(r.quality_score) }}
+              {{ source_badge(r.source) }}
+              <span class="text-[11px] text-slate-500 tabular-nums">{{ r.year or "—" }}</span>
+            </div>
+            <a href="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}{{ back_q }}" class="block text-slate-900 font-medium hover:text-brand-700 line-clamp-3 sm:line-clamp-2 break-words">{{ r.title }}</a>
+            {% if r.authors %}<div class="text-xs text-slate-500 mt-0.5 line-clamp-1 break-words">{{ r.authors }}</div>{% endif %}
+            {% if r.journal %}<div class="text-xs text-slate-400 mt-0.5 italic line-clamp-1 break-words">{{ r.journal }}</div>{% endif %}
+            <div class="mt-2 flex items-center gap-2 flex-wrap sm:hidden">
+              {{ decision_badge(r.decision, in_top_n=r.in_top_n) }}
+              {% if r.user_decision %}<span class="text-[10px] text-violet-600">(sua revisão)</span>{% endif %}
+              {{ link_button(r.external_url, "Abrir", small=true) }}
+            </div>
           </td>
-          <td class="px-4 py-3 align-top">{{ decision_badge(r.decision, in_top_n=r.in_top_n) }}{% if r.user_decision %}<div class="text-[10px] text-violet-600 mt-0.5">(sua revisão)</div>{% endif %}</td>
-          <td class="px-4 py-3 align-top">
+          <td class="hidden sm:table-cell px-4 py-3 align-top">{{ decision_badge(r.decision, in_top_n=r.in_top_n) }}{% if r.user_decision %}<div class="text-[10px] text-violet-600 mt-0.5">(sua revisão)</div>{% endif %}</td>
+          <td class="hidden sm:table-cell px-4 py-3 align-top">
             <div class="flex items-center justify-end gap-2">
               {{ link_button(r.external_url, "Abrir", small=true) }}
-              <a href="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}" class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition font-medium">Detalhes</a>
+              <a href="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}{{ back_q }}" class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition font-medium">Detalhes</a>
             </div>
           </td>
         </tr>

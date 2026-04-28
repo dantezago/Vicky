@@ -26,6 +26,15 @@
 html { scroll-behavior: smooth; }
 body { font-feature-settings: "ss01", "cv11"; }
 
+/* ─── No horizontal scroll on mobile ─────────────────────
+   Tabelas e blocos largos devem rolar dentro de seu próprio
+   container (.overflow-x-auto), nunca empurrar a página inteira.
+   ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  html, body { max-width: 100vw; overflow-x: clip; }
+  table { table-layout: auto; }
+}
+
 /* ─── Tipografia ─────────────────────────────────────── */
 
 .vk-display { font-family: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; }

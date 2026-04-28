@@ -37,6 +37,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+html, body { max-width: 100vw; overflow-x: clip; }
 html { scroll-behavior: smooth; }
 
 body {
@@ -197,7 +198,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   min-height: 40px;
   border-radius: 10px;
 }
-.nav-cta .btn-ghost-pink { display: none; }
+.nav-cta .btn-ghost-pink { display: inline-flex; }
 
 @media (min-width: 880px) {
   .nav-links { display: flex; }

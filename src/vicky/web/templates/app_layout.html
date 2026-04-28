@@ -88,6 +88,35 @@
 
     {% block above_main %}{% endblock %}
 
+    {% block smart_back %}
+    <div id="vk-smart-back-wrap" class="hidden px-4 sm:px-6 lg:px-10 pt-4 -mb-2">
+      <a id="vk-smart-back" href="#" class="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 font-medium">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        Voltar
+      </a>
+    </div>
+    <script>
+    (function(){
+      const ref = document.referrer;
+      if (!ref) return;
+      let u; try { u = new URL(ref); } catch(e) { return; }
+      if (u.origin !== location.origin) return;
+      const path = location.pathname.replace(/\/$/, '') || '/';
+      const refPath = u.pathname.replace(/\/$/, '') || '/';
+      // Não mostrar em telas-raiz
+      const roots = ['/', '/dashboard', '/login', '/signup'];
+      if (roots.includes(path)) return;
+      // Não usar referrer auth como destino
+      if (['/login','/signup'].includes(refPath)) return;
+      if (u.href === location.href) return;
+      const btn = document.getElementById('vk-smart-back');
+      if (!btn) return;
+      btn.href = ref;
+      document.getElementById('vk-smart-back-wrap').classList.remove('hidden');
+    })();
+    </script>
+    {% endblock %}
+
     <main class="flex-1 px-4 sm:px-6 py-6 sm:py-8 lg:px-10 pb-24 sm:pb-12 lg:pb-8">
       {% block content %}{% endblock %}
     </main>

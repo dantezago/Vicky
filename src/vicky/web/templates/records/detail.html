@@ -7,11 +7,15 @@
 {% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5"><a href="/projetos/{{ p.id }}/registros" class="hover:text-brand-600 transition">← Registros do projeto #{{ p.id }}</a></div>{% endblock %}
 {% block page_title %}Detalhe do registro{% endblock %}
 
+{% block smart_back %}{% endblock %}
+
 {% block content %}
 
+{% set _back_url = request.query_params.get('back') or ('/projetos/' ~ p.id|string ~ '/registros') %}
+{% set _self_url = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+
 <div class="mb-5 flex items-center justify-between">
-  <a href="/projetos/{{ p.id }}/registros"
-     onclick="if (window.history.length > 1) { event.preventDefault(); window.history.back(); }"
+  <a href="{{ _back_url }}"
      class="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 font-medium">
     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
     Voltar
@@ -54,6 +58,7 @@
         ] %}
         {% for value, label, color in actions %}
         <form action="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}/decisao" method="post" class="inline" @submit="loading=true">
+          <input type="hidden" name="next" value="{{ _self_url }}">
           <input type="hidden" name="decision" value="{{ value }}">
           <button type="submit" :disabled="loading"
                   class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition disabled:opacity-50
@@ -64,6 +69,7 @@
         {% endfor %}
         {% if r.user_decision %}
         <form action="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}/decisao" method="post" class="inline" @submit="loading=true">
+          <input type="hidden" name="next" value="{{ _self_url }}">
           <input type="hidden" name="decision" value="clear">
           <button type="submit" :disabled="loading" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition">Limpar</button>
         </form>
