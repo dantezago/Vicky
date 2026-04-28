@@ -7,7 +7,10 @@
 {% block content %}
 
 <form action="/projetos" method="post" class="max-w-3xl space-y-6"
-      x-data="{review_type: 'systematic_review'}">
+      x-data="{ review_type: 'systematic_review' }">
+
+  {# rigidity_mode sempre 'padrao' — sistemática agora é modo único, com rigor adaptativo via topic_maturity #}
+  <input type="hidden" name="rigidity_mode" value="padrao">
 
   <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6">
     <h3 class="text-sm font-semibold text-slate-900 mb-4">1. Tipo de revisão</h3>
@@ -18,9 +21,9 @@
         <input type="radio" name="review_type" value="systematic_review" x-model="review_type"
                class="mt-1 text-brand-600 focus:ring-brand-500">
         <div>
-          <div class="text-sm font-semibold text-slate-900">📐 Revisão sistemática</div>
+          <div class="text-sm font-semibold text-slate-900">🔬 Revisão sistemática</div>
           <div class="text-xs text-slate-500 mt-1">
-            Critérios <strong>rígidos</strong>: exige validação externa, multicentrismo, N mínimo, baseline. Foco em selecionar a elite metodológica.
+            Funil PRISMA com <strong>rigor metodológico adaptativo</strong>: validação externa, multi-centro, N robusto e baseline são valorizados no ranking — com pesos que o Discovery agent ajusta conforme o tema é maduro, moderado ou emergente. Triagem real para qualquer área.
           </div>
         </div>
       </label>
@@ -29,7 +32,7 @@
         <input type="radio" name="review_type" value="narrative_review" x-model="review_type"
                class="mt-1 text-brand-600 focus:ring-brand-500">
         <div>
-          <div class="text-sm font-semibold text-slate-900">📝 Artigo de resumo / revisão narrativa</div>
+          <div class="text-sm font-semibold text-slate-900">📝 Revisão narrativa / artigo de resumo</div>
           <div class="text-xs text-slate-500 mt-1">
             Critérios <strong>flexíveis e qualificados</strong>: aceita revisões, guidelines, atualização. Foco em referências atuais, didáticas e úteis para escrever o texto.
           </div>
@@ -71,10 +74,10 @@
           <label class="block text-sm font-medium text-slate-700 mb-1.5">
             🎯 Meta de artigos no Top final
           </label>
-          <input type="number" name="target_articles" value="40" min="1" max="50"
+          <input type="number" name="target_articles" value="20" min="1" max="30"
                  class="w-full rounded-lg border-slate-300 focus:border-brand-500 focus:ring-brand-500 text-sm">
           <p class="mt-1 text-xs text-slate-500">
-            Limite de <strong>50 artigos</strong> no Top final. Cada artigo passa por triagem minuciosa em duas passadas independentes, com Quality Score auditado — manter o teto preserva a profundidade da análise e a fidelidade dos critérios PICO. Mais artigos diluiriam a curadoria; melhor entregar uma elite metodológica do que uma lista inflada.
+            Limite de <strong>30 artigos</strong> no Top final. Cada artigo passa por triagem minuciosa em duas passadas independentes, com Quality Score auditado — manter o teto preserva a profundidade da análise e a fidelidade dos critérios PICO. Mais artigos diluiriam a curadoria; melhor entregar uma elite metodológica do que uma lista inflada.
           </p>
         </div>
       </div>

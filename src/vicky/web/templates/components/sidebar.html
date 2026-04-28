@@ -1,4 +1,17 @@
-<aside class="hidden lg:flex w-64 shrink-0 flex-col bg-white border-r border-slate-200/80 relative">
+{# Sidebar híbrida: drawer fixed no mobile (controlado por Alpine `mobileMenu`),
+   sidebar fixa no desktop. Estado vem do app_layout.html (x-data root). #}
+<div x-show="mobileMenu" x-cloak @click="mobileMenu=false"
+     class="lg:hidden fixed inset-0 bg-slate-900/50 z-40"
+     x-transition:enter="transition ease-out duration-200"
+     x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150"
+     x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
+
+<aside class="flex w-64 shrink-0 flex-col bg-white border-r border-slate-200/80 relative
+              fixed inset-y-0 left-0 z-50 -translate-x-full transition-transform duration-200
+              lg:translate-x-0 lg:static lg:z-auto"
+       :class="{'translate-x-0': mobileMenu}"
+       @click.stop>
   <!-- Decoração suave de fundo (mesh sutil pra dar profundidade) -->
   <div class="absolute top-0 left-0 right-0 h-32 pointer-events-none opacity-50"
        style="background: radial-gradient(ellipse at top, rgba(244, 114, 182, 0.08), transparent 70%);"></div>

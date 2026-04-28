@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS projects (
     years_window     INTEGER DEFAULT 5,
     target_articles  INTEGER DEFAULT 40,    -- Meta de artigos no Top N final
     review_type      TEXT NOT NULL DEFAULT 'systematic_review',  -- systematic_review | narrative_review
+    rigidity_mode    TEXT NOT NULL DEFAULT 'padrao',  -- padrao (funil 4 estágios) | elite (qualidade obrigatória)
+    topic_maturity   TEXT,                  -- high | moderate | emerging — adapta janela e pesos
     criteria_md      TEXT,
     search_strings   TEXT,                  -- JSON {pubmed, scielo, scholar}
     sources          TEXT DEFAULT 'pubmed,scielo,scholar',
@@ -83,12 +85,35 @@ CREATE TABLE IF NOT EXISTS articles (
     external_url TEXT,
     raw_json     TEXT,
     is_duplicate INTEGER DEFAULT 0,                -- 1 se foi marcado como dup de outro
+    search_string_id INTEGER,                       -- qual substring da estratégia multi-string trouxe este artigo
     scraped_at   TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (project_id, source, external_id)
 );
 CREATE INDEX IF NOT EXISTS idx_articles_workspace ON articles(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_articles_project ON articles(project_id);
 CREATE INDEX IF NOT EXISTS idx_articles_doi ON articles(doi) WHERE doi IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_articles_search_string ON articles(search_string_id) WHERE search_string_id IS NOT NULL;
+
+-- search_string_stats: 1 row por substring de busca por (project, source).
+-- Estratégia multi-substring: discovery gera N substrings por source; cada uma
+-- ganha budget proporcional. Após análise, top-K com maior inclusion_rate
+-- ganham 2× o budget; strings com analyzed>=30 e included=0 são "burned".
+CREATE TABLE IF NOT EXISTS search_string_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    source TEXT NOT NULL,
+    string_text TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',           -- active | burned
+    collected_count INTEGER NOT NULL DEFAULT 0,
+    analyzed_count INTEGER NOT NULL DEFAULT 0,
+    included_count INTEGER NOT NULL DEFAULT 0,
+    max_results_budget INTEGER NOT NULL,
+    expanded INTEGER NOT NULL DEFAULT 0,             -- flag: já dobrou budget? (one-shot)
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE (project_id, source, position)
+);
+CREATE INDEX IF NOT EXISTS idx_sss_project_source_status ON search_string_stats(project_id, source, status);
 
 CREATE TABLE IF NOT EXISTS analyses (
     project_id          INTEGER NOT NULL,
@@ -483,6 +508,85 @@ def _migrate_v8_to_v9_workspace_api_key(conn: sqlite3.Connection) -> bool:
     return True
 
 
+def _migrate_v9_to_v10_substring_strategy(conn: sqlite3.Connection) -> bool:
+    """v9 → v10: estratégia de N substrings por source com expand winners.
+
+    Adiciona:
+      - tabela `search_string_stats` (1 linha por substring por source por projeto)
+      - coluna `articles.search_string_id` (qual substring trouxe o artigo;
+        nullable pra retrocompat)
+
+    Sem backfill: artigos antigos ficam com `search_string_id IS NULL` e não
+    contam pras stats. Pipelines novos populam normalmente.
+    """
+    created = False
+    if not _table_exists(conn, "search_string_stats"):
+        conn.execute(
+            """
+            CREATE TABLE search_string_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                string_text TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                collected_count INTEGER NOT NULL DEFAULT 0,
+                analyzed_count INTEGER NOT NULL DEFAULT 0,
+                included_count INTEGER NOT NULL DEFAULT 0,
+                max_results_budget INTEGER NOT NULL,
+                expanded INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                UNIQUE (project_id, source, position),
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sss_project_source_status "
+            "ON search_string_stats(project_id, source, status)"
+        )
+        created = True
+    if _table_exists(conn, "articles") and not _table_has_column(conn, "articles", "search_string_id"):
+        conn.execute("ALTER TABLE articles ADD COLUMN search_string_id INTEGER")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_articles_search_string "
+            "ON articles(search_string_id) WHERE search_string_id IS NOT NULL"
+        )
+        created = True
+    if created:
+        print("✓ v9→v10: search_string_stats + articles.search_string_id (multi-substring search)")
+    return created
+
+
+def _migrate_v10_to_v11_rigidity_mode(conn: sqlite3.Connection) -> bool:
+    """v10 → v11: rigidez configurável + maturidade do tema.
+
+    Adiciona em `projects`:
+      - `rigidity_mode TEXT DEFAULT 'padrao'` — 'padrao' (funil 4 estágios,
+        qualidade vira ranking) ou 'elite' (qualidade vira piso obrigatório).
+        Só relevante quando review_type='systematic_review'.
+      - `topic_maturity TEXT NULL` — 'high' | 'moderate' | 'emerging',
+        preenchido pelo discovery agent. Adapta janela temporal e pesos
+        do score específico.
+
+    Backfill: projetos pré-existentes recebem rigidity_mode='padrao' (default).
+    criteria_md NÃO é regerado — comportamento dos pipelines existentes só
+    muda nas próximas chamadas de discovery/analyze.
+    """
+    if not _table_exists(conn, "projects"):
+        return False
+    changed = False
+    if not _table_has_column(conn, "projects", "rigidity_mode"):
+        conn.execute("ALTER TABLE projects ADD COLUMN rigidity_mode TEXT NOT NULL DEFAULT 'padrao'")
+        changed = True
+    if not _table_has_column(conn, "projects", "topic_maturity"):
+        conn.execute("ALTER TABLE projects ADD COLUMN topic_maturity TEXT")
+        changed = True
+    if changed:
+        print("✓ v10→v11: rigidity_mode + topic_maturity em projects")
+    return changed
+
+
 def run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_v1_to_v2_multitenancy(conn)
     conn.commit()
@@ -499,6 +603,10 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_v7_to_v8_real_cost(conn)
     conn.commit()
     _migrate_v8_to_v9_workspace_api_key(conn)
+    conn.commit()
+    _migrate_v9_to_v10_substring_strategy(conn)
+    conn.commit()
+    _migrate_v10_to_v11_rigidity_mode(conn)
     conn.commit()
 
 
@@ -550,22 +658,125 @@ class DoubleCheck:
 
 
 def upsert_article(conn: sqlite3.Connection, *, workspace_id: int, project_id: int,
-                   art: Article, raw: dict) -> None:
+                   art: Article, raw: dict, search_string_id: int | None = None) -> None:
+    """Insere/atualiza artigo. `search_string_id` registra qual substring trouxe o artigo
+    pela primeira vez (estratégia multi-string). Em re-coleta, NÃO sobrescreve atribuição
+    existente — só preenche quando ainda é NULL (idempotência cross-run)."""
     conn.execute(
         """
         INSERT INTO articles (workspace_id, project_id, source, external_id,
                               title, authors, year, journal, abstract, doi,
-                              external_url, raw_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              external_url, raw_json, search_string_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(project_id, source, external_id) DO UPDATE SET
             title=excluded.title, authors=excluded.authors, year=excluded.year,
             journal=excluded.journal, abstract=excluded.abstract, doi=excluded.doi,
-            external_url=excluded.external_url, raw_json=excluded.raw_json
+            external_url=excluded.external_url, raw_json=excluded.raw_json,
+            search_string_id=COALESCE(articles.search_string_id, excluded.search_string_id)
         """,
         (workspace_id, project_id, art.source, art.external_id,
          art.title, art.authors, art.year, art.journal, art.abstract,
-         art.doi, art.external_url, json.dumps(raw, ensure_ascii=False)),
+         art.doi, art.external_url, json.dumps(raw, ensure_ascii=False),
+         search_string_id),
     )
+
+
+def seed_search_strings(conn, project_id: int,
+                         search_strings: dict[str, list[str]],
+                         max_results_per_source: dict[str, int]) -> dict[str, list[int]]:
+    """Popula `search_string_stats` a partir do output do discovery agent.
+
+    Retorna `{source: [string_id, ...]}` na mesma ordem das listas de entrada.
+
+    Idempotente via UNIQUE(project_id, source, position): re-rodar discovery não
+    duplica linhas — `ON CONFLICT DO NOTHING` ignora dups. Ainda retorna os ids
+    existentes via SELECT após o INSERT.
+    """
+    out: dict[str, list[int]] = {}
+    for source, strings in (search_strings or {}).items():
+        if not isinstance(strings, list) or not strings:
+            out[source] = []
+            continue
+        n = max(1, len(strings))
+        # Budget proporcional: cap total / N (mín 50 pra evitar substrings inúteis)
+        per_source_total = max_results_per_source.get(source, 200)
+        budget = max(50, per_source_total // n)
+        for position, text in enumerate(strings):
+            text = (text or "").strip()
+            if len(text) < 5:
+                continue
+            conn.execute(
+                """
+                INSERT INTO search_string_stats
+                    (project_id, source, string_text, position, status, max_results_budget)
+                VALUES (?, ?, ?, ?, 'active', ?)
+                ON CONFLICT (project_id, source, position) DO NOTHING
+                """,
+                (project_id, source, text, position, budget),
+            )
+        # Retorna ids ordenados por position (mesmo se algumas linhas pré-existiam)
+        rows = conn.execute(
+            """SELECT id FROM search_string_stats
+               WHERE project_id=? AND source=? ORDER BY position""",
+            (project_id, source),
+        ).fetchall()
+        out[source] = [r["id"] if hasattr(r, "keys") else r[0] for r in rows]
+    return out
+
+
+def compute_string_stats(conn, project_id: int) -> None:
+    """Atualiza `analyzed_count` e `included_count` em `search_string_stats`
+    baseado em `articles.search_string_id` × `analyses.decision`.
+
+    Chamada periódica durante o pipeline (após cada batch de analyze) para
+    manter os contadores em dia, alimentando `rebalance_search_strings`.
+    """
+    conn.execute(
+        """
+        UPDATE search_string_stats AS ss SET
+            analyzed_count = (
+                SELECT COUNT(*) FROM analyses an
+                JOIN articles a ON a.project_id = an.project_id
+                              AND a.source = an.source
+                              AND a.external_id = an.external_id
+                WHERE a.project_id = ss.project_id
+                  AND a.search_string_id = ss.id
+            ),
+            included_count = (
+                SELECT COUNT(*) FROM analyses an
+                JOIN articles a ON a.project_id = an.project_id
+                              AND a.source = an.source
+                              AND a.external_id = an.external_id
+                WHERE a.project_id = ss.project_id
+                  AND a.search_string_id = ss.id
+                  AND an.decision = 'include'
+            )
+        WHERE ss.project_id = ?
+        """,
+        (project_id,),
+    )
+
+
+def list_search_strings(conn, project_id: int,
+                         source: str | None = None,
+                         only_active: bool = True) -> list[dict]:
+    """Devolve linhas de `search_string_stats` para um projeto, opcionalmente filtradas
+    por source e status. Útil para callers de busca/UI."""
+    where = ["project_id=?"]
+    params: list = [project_id]
+    if source:
+        where.append("source=?"); params.append(source)
+    if only_active:
+        where.append("status='active'")
+    sql = (
+        "SELECT id, project_id, source, string_text, position, status, "
+        "       collected_count, analyzed_count, included_count, "
+        "       max_results_budget, expanded "
+        "FROM search_string_stats WHERE " + " AND ".join(where) +
+        " ORDER BY source, position"
+    )
+    rows = conn.execute(sql, params).fetchall()
+    return [dict(r) for r in rows]
 
 
 def insert_analysis(conn, project_id: int,

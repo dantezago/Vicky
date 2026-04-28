@@ -21,13 +21,16 @@ from .sources import REGISTRY
 from .openrouter_cost import fetch_real_cost
 from .storage import (
     articles_without_analysis,
+    compute_string_stats,
     connect,
     create_job,
     excluded_without_double_check,
     insert_analysis,
     insert_double_check,
+    list_search_strings,
     project_stats,
     record_llm_call,
+    seed_search_strings,
     update_job,
     update_llm_usage_real_cost,
     upsert_article,
@@ -80,7 +83,7 @@ from .web import workspaces as workspaces_module
 # MAX: teto absoluto de análises por pipeline
 MIN_REQUIRED_ARTICLES = 500       # Sistemática: ≥500 ANALISADOS (regra imutável)
 MIN_REQUIRED_NARRATIVE = 200      # Narrativa: ≥200 ANALISADOS (regra imutável)
-MAX_TOTAL_ARTICLES = 1300         # Cap DURO: nunca analisar mais que isso
+MAX_TOTAL_ARTICLES = 1500         # Cap DURO: nunca analisar mais que isso
 
 ANALYZE_CONCURRENCY = 20          # Workers paralelos do analyzer (sweet spot p/ rate limit)
 DOUBLE_CHECK_CONCURRENCY = 20     # Workers paralelos do double-check
@@ -124,6 +127,16 @@ YEARS_WINDOW_EXPANSION_LIMIT = len(YEARS_WINDOW_EXPANSION_LADDER)
 # temporal). Evita o loop infinito que vimos no projeto #68.
 USELESS_OPERATIONS_LIMIT = 3
 
+# ── Multi-substring strategy: expand winners + burn losers ──
+# Após batches de análise, recalcular taxa de inclusão por substring e:
+# - Top-2 strings (maior inclusion_rate, com >=10 analisados) ganham 2× budget
+# - Strings com >=30 analisados E 0 incluídos viram status='burned' (não rodam mais)
+BURN_MIN_ANALYZED = 30
+EXPAND_TOP_N = 2
+EXPAND_MULTIPLIER = 2
+EXPAND_MIN_ANALYZED = 10  # piso pra evitar promover spurious (1/1=100% mas amostra mínima)
+REBALANCE_MIN_ANALYZED = 100  # só faz sentido rebalance após batch razoável
+
 
 def _min_required_for(review_type: str | None) -> int:
     """Mínimo IMUTÁVEL de artigos ANALISADOS antes do pipeline poder parar.
@@ -160,7 +173,7 @@ async def run_full_pipeline(project_id: int) -> None:
     Regras (não negociáveis):
       1. analisar SEMPRE ≥ min_required (sistemática=500, narrativa=200)
          — mesmo se Top N for atingido antes
-      2. analisar NUNCA > MAX_TOTAL_ARTICLES (=1300)
+      2. analisar NUNCA > MAX_TOTAL_ARTICLES
       3. depois do mínimo: parar SE Top N atingido OU cap MAX atingido OU
          coleta genuinamente esgotada (STAGNATION_LIMIT iters sem novidade)
 
@@ -194,9 +207,10 @@ async def run_full_pipeline(project_id: int) -> None:
         min_required = _min_required_for(p.review_type)
 
         # ══════ FASE B: Busca inicial paralela em todas as sources ══════
+        # _step_search agora lê substrings ativas de search_string_stats
+        # (populado por seed_search_strings após discovery).
         search_tasks = [
-            _step_search(project_id, workspace_id, source,
-                         p.search_strings.get(source, p.topic))
+            _step_search(project_id, workspace_id, source)
             for source in p.sources if source in REGISTRY
         ]
         if search_tasks:
@@ -372,45 +386,83 @@ async def run_full_pipeline(project_id: int) -> None:
                         f"(analyzed={pre_analyzed}). Provável falha de LLM."
                     )
                 stats = post
+                # Atualiza counters por substring (alimenta rebalance)
+                try:
+                    with connect() as conn:
+                        compute_string_stats(conn, project_id)
+                except Exception as e:
+                    print(f"  ⚠ compute_string_stats falhou (não-fatal): {e}")
 
             # ── Passo 1.5: regra de proporção (incluídos/analisados) ──
             # A cada RATIO_CHECK_INTERVAL artigos, confere se a proporção
-            # real está alinhada com a esperada (target/MAX). Se não,
-            # volta ao agente de descoberta pra gerar ângulos novos.
+            # real está alinhada com a esperada (target/MAX). Sequência:
+            #   (a) sempre tenta REBALANCE (cheap; só re-equilibra budgets)
+            #   (b) se rebalance expandiu winners, re-roda search com novos budgets
+            #   (c) se TODAS as ativas viraram burned em algum source, aciona rotate
             if (stats["analyzed"] >= RATIO_CHECK_MIN_BASE
                     and stats["analyzed"] - last_ratio_check_at >= RATIO_CHECK_INTERVAL):
                 last_ratio_check_at = stats["analyzed"]
                 actual_ratio = stats["included"] / max(1, stats["analyzed"])
-                # Tolerância: só reroll se proporção for SIGNIFICATIVAMENTE baixa.
-                # Evita false positives quando target/MAX é muito apertado (ex: 40/1300=3%
-                # — variação natural pode levar batches a ficar abaixo sem o tema estar errado).
                 threshold = expected_inclusion_ratio * RATIO_CHECK_TOLERANCE
                 if (actual_ratio < threshold
                         and stats["included"] < target
-                        and stats["analyzed"] < MAX_TOTAL_ARTICLES
-                        and discovery_rerolls_done < DISCOVERY_REROLL_LIMIT):
-                    discovery_rerolls_done += 1
-                    print(f"  ↻ Reroll #{discovery_rerolls_done}/{DISCOVERY_REROLL_LIMIT}: "
-                          f"proporção {actual_ratio:.3f} < esperada {expected_inclusion_ratio:.3f} "
-                          f"(incluídos={stats['included']}/{stats['analyzed']}) — "
-                          f"agente de descoberta gerando ângulos novos")
+                        and stats["analyzed"] < MAX_TOTAL_ARTICLES):
+                    # (a) Rebalance — barato, sempre tenta primeiro
+                    rebalance_summary = {}
                     try:
-                        # attempt muito alto força LLM a divergir radicalmente
-                        # dos termos anteriores (sinônimos, traduções, conceitos relacionados)
-                        await _step_rotate_terms(
-                            project_id, cfg, model,
-                            1000 + discovery_rerolls_done * 100,
-                        )
-                        p = projects_module.get(project_id)
-                        # Reset orçamentos: novas strings merecem chance completa
-                        stagnation = 0
-                        rotations_done = 0
-                        expansion_iter = 0
-                        prev_total = _project_counts(project_id)["total"]
-                    except LLMUnavailableError:
-                        raise
+                        rebalance_summary = rebalance_search_strings(project_id)
                     except Exception as e:
-                        print(f"  ⚠ reroll de discovery falhou: {e}")
+                        print(f"  ⚠ rebalance_search_strings falhou: {e}")
+                    n_expanded = sum(s.get("expanded", 0) for s in rebalance_summary.values())
+                    n_burned = sum(s.get("burned", 0) for s in rebalance_summary.values())
+                    if n_expanded > 0 or n_burned > 0:
+                        print(f"  ⚖ Rebalance: +{n_expanded} expanded, +{n_burned} burned "
+                              f"(ratio={actual_ratio:.3f} < {threshold:.3f})")
+
+                    # (b) Se algum source teve expansão, re-roda search e pula rotate
+                    expanded_sources = [src for src, s in rebalance_summary.items()
+                                        if s.get("expanded", 0) > 0]
+                    if expanded_sources:
+                        try:
+                            for src in expanded_sources:
+                                if src in REGISTRY:
+                                    await _step_search(project_id, p.workspace_id, src)
+                            await _step_dedup(project_id)
+                            prev_total = _project_counts(project_id)["total"]
+                        except Exception as e:
+                            print(f"  ⚠ re-search após expand falhou: {e}")
+                    elif discovery_rerolls_done < DISCOVERY_REROLL_LIMIT:
+                        # (c) Sem expansão útil — verifica se algum source ficou sem ativas
+                        try:
+                            with connect() as conn:
+                                row = conn.execute(
+                                    """SELECT COUNT(*) FILTER (WHERE status='active') AS n_active
+                                       FROM search_string_stats WHERE project_id=?""",
+                                    (project_id,),
+                                ).fetchone() if conn.backend == "postgres" else None
+                            need_rotate = (row is None or
+                                           (row["n_active"] if hasattr(row, "keys") else row[0]) <= 0
+                                           or n_burned > 0)
+                        except Exception:
+                            need_rotate = True
+                        if need_rotate:
+                            discovery_rerolls_done += 1
+                            print(f"  ↻ Reroll #{discovery_rerolls_done}/{DISCOVERY_REROLL_LIMIT}: "
+                                  f"proporção {actual_ratio:.3f} < esperada {expected_inclusion_ratio:.3f}")
+                            try:
+                                await _step_rotate_terms(
+                                    project_id, cfg, model,
+                                    1000 + discovery_rerolls_done * 100,
+                                )
+                                p = projects_module.get(project_id)
+                                stagnation = 0
+                                rotations_done = 0
+                                expansion_iter = 0
+                                prev_total = _project_counts(project_id)["total"]
+                            except LLMUnavailableError:
+                                raise
+                            except Exception as e:
+                                print(f"  ⚠ reroll de discovery falhou: {e}")
 
             # ── Passo 2: re-checar paradas após análise ──
             if stats["analyzed"] >= MAX_TOTAL_ARTICLES:
@@ -600,6 +652,7 @@ async def _step_discovery(project_id: int, cfg: Config, model: str) -> None:
             run_discovery_with_fallback, client, model,
             topic=p.topic, objective=p.objective, years_window=p.years_window,
             review_type=p.review_type,
+            rigidity_mode=getattr(p, "rigidity_mode", "padrao"),
         )
         # Só registra uso de LLM se não foi fallback (fallback não chama o modelo)
         if not used_fallback and result.generation_id:
@@ -620,94 +673,158 @@ async def _step_discovery(project_id: int, cfg: Config, model: str) -> None:
             warning_parts.append(f"avisos: {'; '.join(issues)}")
         if warning_parts:
             _job_update(job_id, message=" · ".join(warning_parts))
-        projects_module.update(
-            project_id,
-            criteria_md=result.criteria_md,
-            search_strings=result.search_strings,
-            status="criteria_ready",
-        )
+        # Persiste topic_maturity (pode ser '' quando Discovery não declarou — mantém NULL)
+        update_fields = {
+            "criteria_md": result.criteria_md,
+            "search_strings": result.search_strings,
+            "status": "criteria_ready",
+        }
+        if getattr(result, "topic_maturity", ""):
+            update_fields["topic_maturity"] = result.topic_maturity
+        projects_module.update(project_id, **update_fields)
+        # Popula search_string_stats com 1 row por (source, substring) — passa
+        # a ser fonte de verdade pra _step_search e rebalance_search_strings.
+        try:
+            with connect() as conn:
+                seeded = seed_search_strings(
+                    conn, project_id, result.search_strings, MAX_RESULTS_PER_SOURCE,
+                )
+            seeded_total = sum(len(v) for v in seeded.values())
+        except Exception as e:
+            seeded_total = 0
+            print(f"  ⚠ seed_search_strings falhou: {e}")
         suffix = " (fallback)" if used_fallback else ""
-        _job_done(job_id, message=f"Critérios + search strings gerados{suffix} ({result.rationale[:120]})")
+        seed_msg = f" · {seeded_total} substrings ativas" if seeded_total else ""
+        _job_done(
+            job_id,
+            message=f"Critérios + search strings gerados{suffix}{seed_msg} ({result.rationale[:120]})",
+        )
     except Exception as e:
         _job_fail(job_id, e)
         raise
 
 
-async def _step_search(project_id: int, workspace_id: int, source: str, query: str) -> None:
-    """Busca multi-estratégia: roda as 3 estratégias EM PARALELO e dedupa por
-    external_id. Antes era serial (estrita → relaxed → tema cru) mas a maioria
-    das vezes precisamos das 3 pra atingir volume — paralelizar economiza
-    1-2 min de wait sequencial.
+async def _step_search(project_id: int, workspace_id: int, source: str,
+                       string_ids: list[int] | None = None) -> None:
+    """Busca multi-substring × multi-estratégia: para cada substring ativa
+    (de `search_string_stats`), roda as 3 estratégias E1/E2/E3 em paralelo,
+    deduplica entre todas, e atribui `search_string_id` à PRIMEIRA substring
+    que viu cada artigo.
 
-    Estratégias (todas rodam ao mesmo tempo):
-      1. Query do discovery agent (estrita, com MeSH/filtros)
-      2. Query "ampliada" — remove filtros de tipo, mantém termos
-      3. Query "tema cru" — só palavras-chave do tema
-    Resultados são unificados via dict por external_id (dedup automático).
+    Estratégias por substring (paralelas):
+      E1: query do discovery (estrita)
+      E2: query ampliada — remove filtros restritivos
+      E3: query "tema cru" — só keywords
+
+    Concorrência: `asyncio.Semaphore(SEARCH_CONCURRENCY_PER_SOURCE)` evita
+    inundar API NCBI/SciELO (rate-limit 429).
+
+    `string_ids`: opcional — se passado, roda só essas substrings (útil em
+    re-runs após `rebalance_search_strings` expandiu budgets). Default: todas
+    as `status='active'` do source.
     """
     job_id = _create_job(project_id, f"search_{source}")
-    if not query or len(query.strip()) < 5:
-        p_init = projects_module.get(project_id)
-        query = p_init.topic
     try:
         scraper = REGISTRY[source]
-        max_per_source = MAX_RESULTS_PER_SOURCE[source]
-
         p = projects_module.get(project_id)
-        strategies = _build_strategies(source, query, p.topic, p.years_window)
 
+        # Carrega substrings ativas
+        with connect() as conn:
+            active = list_search_strings(conn, project_id, source=source, only_active=True)
+        if string_ids:
+            active = [s for s in active if s["id"] in set(string_ids)]
+        if not active:
+            # Fallback: projeto antigo sem search_string_stats — usa fluxo legacy
+            legacy_q = ""
+            try:
+                ss = p.search_strings.get(source) if isinstance(p.search_strings, dict) else None
+                if isinstance(ss, list) and ss:
+                    legacy_q = ss[0]
+                elif isinstance(ss, str):
+                    legacy_q = ss
+            except Exception:
+                legacy_q = ""
+            if not legacy_q:
+                legacy_q = p.topic
+            active = [{"id": None, "string_text": legacy_q,
+                       "max_results_budget": MAX_RESULTS_PER_SOURCE.get(source, 200)}]
+
+        sem = asyncio.Semaphore(SEARCH_CONCURRENCY_PER_SOURCE)
+        # all_results: dict[external_id, (art, raw, search_string_id_da_primeira)]
         all_results: dict[str, tuple] = {}
-        strategy_log = []
+        per_string_counts: dict[int | None, int] = {}
+        strategy_log: list[str] = []
         errors: list[str] = []
 
-        async def run_strategy(idx: int, label: str, qs: str):
-            try:
-                # Cada estratégia tenta puxar até max_per_source/2 — somando vão
-                # cobrir o cap; dedup por external_id elimina overlap.
-                results = await scraper.search(qs, max_results=max_per_source,
-                                               progress=lambda *_: None)
-                return (idx, label, results, None)
-            except Exception as e:
-                return (idx, label, [], e)
+        async def run_strategy(string_id: int | None, label: str, qs: str, budget: int):
+            async with sem:
+                try:
+                    results = await scraper.search(qs, max_results=budget, progress=lambda *_: None)
+                    return (string_id, label, results, None)
+                except Exception as e:
+                    return (string_id, label, [], e)
 
-        # Roda TODAS as estratégias em paralelo (era sequencial)
-        tasks = [run_strategy(i, label, qs) for i, (label, qs) in enumerate(strategies, 1)]
-        _job_update(job_id, progress=10,
-                    message=f"Buscando em {len(strategies)} estratégias paralelas")
+        tasks = []
+        for ss in active:
+            ss_id = ss["id"]
+            ss_text = ss["string_text"]
+            budget = max(50, int(ss["max_results_budget"]))
+            for label, qs in _build_strategies(source, ss_text, p.topic, p.years_window):
+                tasks.append(run_strategy(ss_id, label, qs, budget))
+
+        _job_update(
+            job_id, progress=10,
+            message=f"Buscando em {len(active)} substring(s) × {len(tasks)//max(1,len(active))} estratégia(s)",
+        )
         outcomes = await asyncio.gather(*tasks, return_exceptions=False)
 
-        for idx, label, results, err in outcomes:
+        # Agrupa por substring pra logar
+        per_string_log: dict[int | None, dict[str, int]] = {}
+        for ss_id, label, results, err in outcomes:
+            bucket = per_string_log.setdefault(ss_id, {})
             if err:
-                errors.append(f"E{idx}({label}): {type(err).__name__}")
-                strategy_log.append(f"E{idx} ({label}): erro")
+                errors.append(f"ss{ss_id}/{label}: {type(err).__name__}")
+                bucket[label] = -1
                 continue
-            new_count = 0
+            new = 0
             for art, raw in results:
-                # Sem cap interno: deixa as 3 estratégias paralelas agregarem tudo
-                # que acharam de único. O cap de quantidade é por-strategy (max_per_source)
-                # passado pro scraper. O DB final ainda é controlado por MAX_TOTAL_ARTICLES.
                 if art.external_id not in all_results:
-                    all_results[art.external_id] = (art, raw)
-                    new_count += 1
-            strategy_log.append(f"E{idx} ({label}): +{new_count}")
+                    all_results[art.external_id] = (art, raw, ss_id)
+                    new += 1
+            bucket[label] = bucket.get(label, 0) + new
 
-        _job_update(job_id, progress=85,
-                    message=f"Acumulado: {len(all_results)} ({' · '.join(strategy_log)})")
+        # Conta por substring (apenas as PRIMEIRAS atribuições, não o universo bruto)
+        for _, _, _, ss_id in [(0, 0, 0, t[2]) for t in all_results.values()]:
+            per_string_counts[ss_id] = per_string_counts.get(ss_id, 0) + 1
+        for ss_id, by_strat in per_string_log.items():
+            n_total = per_string_counts.get(ss_id, 0)
+            label = f"#{ss_id}" if ss_id else "legacy"
+            strategy_log.append(f"ss{label}: +{n_total}")
 
-        # Persiste tudo num batch
+        _job_update(
+            job_id, progress=85,
+            message=f"Acumulado: {len(all_results)} ({' · '.join(strategy_log)})",
+        )
+
+        # Persiste tudo num batch + atualiza collected_count por substring
         try:
             with connect() as conn:
-                for art, raw in all_results.values():
-                    upsert_article(conn, workspace_id=workspace_id,
-                                   project_id=project_id, art=art, raw=raw)
+                for art, raw, ss_id in all_results.values():
+                    upsert_article(
+                        conn, workspace_id=workspace_id, project_id=project_id,
+                        art=art, raw=raw, search_string_id=ss_id,
+                    )
+                for ss_id, n in per_string_counts.items():
+                    if ss_id is not None and n > 0:
+                        conn.execute(
+                            "UPDATE search_string_stats "
+                            "SET collected_count = collected_count + ? "
+                            "WHERE id=?",
+                            (n, ss_id),
+                        )
         except Exception as e:
-            # Persistência falhou após coleta bem-sucedida — registra mas não fatal:
-            # próxima rodada de busca vai re-coletar o que perdemos.
             errors.append(f"persist: {type(e).__name__}: {e}")
 
-        # Diagnostic: 0 artigos coletados em TODAS as estratégias é sinal grave
-        # mas não derruba o pipeline (outras sources podem cobrir). Marca como
-        # success com aviso pra o verify final ver no log.
         msg_parts = [f"{len(all_results)} artigos de {source}"]
         if strategy_log:
             msg_parts.append(f"({' · '.join(strategy_log)})")
@@ -718,11 +835,15 @@ async def _step_search(project_id: int, workspace_id: int, source: str, query: s
         _job_fail(job_id, e)
 
 
-# Limites por source — cada estratégia paralela puxa até esse teto.
-# Como rodam 3 estratégias paralelas e há rotações posteriores, o universo
-# real de artigos coletados pode ser muito maior antes de bater MAX_TOTAL_ARTICLES.
+# Limites por source — orçamento TOTAL (dividido entre N substrings da estratégia
+# multi-string). Cada substring começa com `MAX_RESULTS_PER_SOURCE[src] // N` e
+# pode dobrar via `rebalance_search_strings` quando vira "winner".
 MAX_RESULTS_PER_SOURCE = {"pubmed": 1000, "scielo": 300, "scholar": 100}
 TARGET_MIN_PER_SOURCE = {"pubmed": 200, "scielo": 50, "scholar": 30}
+
+# Concorrência por source: máximo de tasks (substring × estratégia) rodando
+# simultaneamente. Evita 429 em NCBI (limite 3 req/s sem chave) / SciELO.
+SEARCH_CONCURRENCY_PER_SOURCE = 6
 
 
 def _build_strategies(source: str, llm_query: str, topic: str,
@@ -1127,6 +1248,7 @@ async def _step_analyze(project_id: int, cfg: Config, model: str,
         criteria = p.criteria_md or None
         topic = p.topic or None
         review_type = p.review_type
+        rigidity_mode = getattr(p, "rigidity_mode", "padrao")
         with connect() as conn:
             pending = articles_without_analysis(conn, project_id)
         if not pending:
@@ -1169,7 +1291,7 @@ async def _step_analyze(project_id: int, cfg: Config, model: str,
                     return
                 try:
                     analysis, raw, usage = await asyncio.to_thread(
-                        analyze_with_raw, client, model, art, criteria, topic, review_type)
+                        analyze_with_raw, client, model, art, criteria, topic, review_type, rigidity_mode)
                     with connect() as conn:
                         insert_analysis(conn, project_id, analysis, raw)
                     usage_id = record_llm_call(
@@ -1352,12 +1474,12 @@ async def _step_expand_years_window(project_id: int, cfg: Config, model: str,
         )
         _schedule_reconcile(usage_id, rot.generation_id, cfg.openrouter_api_key)
         projects_module.update(project_id, search_strings=rot.strings)
-        # Re-busca em todas as sources com a janela ampliada
+        # Re-busca em todas as sources usando substrings ativas atualizadas.
+        # _step_search lê search_string_stats; se vazio, cai no fallback legacy.
         for source in p.sources:
             if source not in REGISTRY:
                 continue
-            await _step_search(project_id, p.workspace_id, source,
-                               rot.strings.get(source, p.topic))
+            await _step_search(project_id, p.workspace_id, source)
         await _step_dedup(project_id)
         _job_done(job_id, message=f"Janela ampliada: {original_years_window}→{new_window} anos · busca refeita")
     except Exception as e:
@@ -1368,6 +1490,69 @@ async def _step_expand_years_window(project_id: int, cfg: Config, model: str,
 
 
 ROTATE_VALIDATION_RETRIES = 2  # sub-tentativas de rotação se PubMed count==0
+
+
+def rebalance_search_strings(project_id: int) -> dict[str, dict[str, int]]:
+    """Rebalanceia substrings ativas baseado em inclusion_rate observado.
+
+    Por source:
+      - **Burn**: strings com `analyzed_count >= BURN_MIN_ANALYZED` e
+        `included_count == 0` viram `status='burned'` (não rodam mais).
+      - **Expand**: top-N strings ativas com `analyzed_count >= EXPAND_MIN_ANALYZED`,
+        ordenadas por `included_count / analyzed_count`, ganham budget × `EXPAND_MULTIPLIER`
+        (one-shot via flag `expanded`).
+
+    Retorna `{source: {"burned": int, "expanded": int}}` pra logging/decisões do loop.
+    Atualiza counters ANTES via `compute_string_stats` pra garantir dados frescos.
+    """
+    summary: dict[str, dict[str, int]] = {}
+    with connect() as conn:
+        compute_string_stats(conn, project_id)
+        # Lista sources distintos do projeto
+        rows = conn.execute(
+            "SELECT DISTINCT source FROM search_string_stats WHERE project_id=?",
+            (project_id,),
+        ).fetchall()
+        sources = [r["source"] if hasattr(r, "keys") else r[0] for r in rows]
+
+        for source in sources:
+            burned = 0
+            expanded = 0
+
+            # Burn: strings com volume mínimo analisado e 0 inclusões
+            cur = conn.execute(
+                """UPDATE search_string_stats
+                   SET status='burned'
+                   WHERE project_id=? AND source=? AND status='active'
+                     AND analyzed_count >= ? AND included_count = 0""",
+                (project_id, source, BURN_MIN_ANALYZED),
+            )
+            burned = getattr(cur, "rowcount", 0) or 0
+
+            # Expand: top-N ativas (excluindo as recém-burned), com piso EXPAND_MIN_ANALYZED,
+            # ainda não expandidas (one-shot).
+            top_rows = conn.execute(
+                """SELECT id, included_count, analyzed_count
+                   FROM search_string_stats
+                   WHERE project_id=? AND source=? AND status='active'
+                     AND analyzed_count >= ? AND expanded = 0
+                   ORDER BY (CAST(included_count AS REAL) / CAST(analyzed_count AS REAL)) DESC,
+                            included_count DESC
+                   LIMIT ?""",
+                (project_id, source, EXPAND_MIN_ANALYZED, EXPAND_TOP_N),
+            ).fetchall()
+            for r in top_rows:
+                ssid = r["id"] if hasattr(r, "keys") else r[0]
+                conn.execute(
+                    """UPDATE search_string_stats
+                       SET max_results_budget = max_results_budget * ?, expanded = 1
+                       WHERE id=?""",
+                    (EXPAND_MULTIPLIER, ssid),
+                )
+                expanded += 1
+
+            summary[source] = {"burned": burned, "expanded": expanded}
+    return summary
 
 
 async def _step_rotate_terms(project_id: int, cfg: Config, model: str,
@@ -1392,18 +1577,47 @@ async def _step_rotate_terms(project_id: int, cfg: Config, model: str,
         p = projects_module.get(project_id)
         client = make_client(cfg, api_key_override=_api_key_for_project(project_id, cfg))
 
-        new_strings: dict[str, str] = {}
+        # Coleta strings BURNED por source pra alimentar o prompt do LLM.
+        # Se ainda não há burned (sistema legacy ou primeiro rotate), usa as
+        # strings ATIVAS atuais como contexto pra LLM gerar alternativas.
+        burned_strings: dict[str, list[str]] = {}
+        with connect() as conn:
+            for source in p.sources:
+                if source not in REGISTRY:
+                    continue
+                rows = conn.execute(
+                    """SELECT string_text FROM search_string_stats
+                       WHERE project_id=? AND source=? AND status='burned'
+                       ORDER BY position""",
+                    (project_id, source),
+                ).fetchall()
+                if rows:
+                    burned_strings[source] = [r["string_text"] if hasattr(r, "keys") else r[0] for r in rows]
+                else:
+                    # Sem burned — usa ativas como contexto (LLM gera ângulos novos)
+                    rows = conn.execute(
+                        """SELECT string_text FROM search_string_stats
+                           WHERE project_id=? AND source=? AND status='active'
+                           ORDER BY position""",
+                        (project_id, source),
+                    ).fetchall()
+                    burned_strings[source] = [r["string_text"] if hasattr(r, "keys") else r[0] for r in rows]
+
+        # Quantas substitutas pedir? Mesma quantidade de burned (mín 3 se 0 burned, pra ampliar pool)
+        n_sub = max(3, max((len(v) for v in burned_strings.values()), default=3))
+
+        rot_strings: dict[str, list[str]] = {}
         pubmed_n = -1
         sub_attempts = 0
-        last_strings = p.search_strings or {}
-        # Loop de sub-rotação: pede strings, valida com PubMed count, retry se 0
+        last_burned = burned_strings
         for sub in range(ROTATE_VALIDATION_RETRIES + 1):
             sub_attempts = sub + 1
             rot = await asyncio.to_thread(
                 rotate_search_strings, client, model,
-                topic=p.topic, previous_strings=last_strings,
-                attempt=attempt + sub * 1000,  # diversifica prompt em retries
+                topic=p.topic, previous_strings_burned=last_burned,
+                attempt=attempt + sub * 1000,
                 years_window=p.years_window,
+                n_substitutes=n_sub,
             )
             usage_id = record_llm_call(
                 project_id=project_id, pipeline_step="rotate_terms", model=model,
@@ -1414,44 +1628,105 @@ async def _step_rotate_terms(project_id: int, cfg: Config, model: str,
                 generation_id=rot.generation_id,
             )
             _schedule_reconcile(usage_id, rot.generation_id, cfg.openrouter_api_key)
-            new_strings = rot.strings
-            pubmed_q = new_strings.get("pubmed", "")
-            if not pubmed_q:
-                # Sem string de PubMed pra validar — aceita como está e segue
-                pubmed_n = -1
-                break
-            pubmed_n = await pubmed_count(pubmed_q)
+            rot_strings = rot.strings
+            # Pré-valida cada string PubMed individualmente — descarta as com count=0
+            pubmed_list = rot_strings.get("pubmed") or []
+            valid_pubmed = []
+            for q in pubmed_list:
+                if not q or len(q) < 5:
+                    continue
+                cnt = await pubmed_count(q)
+                if cnt > 0 or cnt == -1:  # >0 OU falha de rede (deixa passar)
+                    valid_pubmed.append(q)
+            rot_strings["pubmed"] = valid_pubmed
+            # pubmed_n agora é "tem alguma válida?"
+            pubmed_n = len(valid_pubmed)
             _job_update(
                 job_id,
-                message=f"Sub #{sub_attempts}: PubMed count = {pubmed_n}",
+                message=f"Sub #{sub_attempts}: {pubmed_n} substring(s) PubMed válida(s) de {len(pubmed_list)}",
             )
-            if pubmed_n != 0:
-                # count > 0 OU falhou (-1, deixa caller resolver) → aceita strings
+            if pubmed_n > 0 or not pubmed_list:
                 break
-            # count == 0 — retry com novas anteriores pra forçar LLM a divergir
-            last_strings = new_strings
-        # Persiste strings (mesmo se count==0, fica registrado pro debug do user)
-        projects_module.update(project_id, search_strings=new_strings)
+            # Todas as PubMed deram count=0 → retry com mais agressividade
+            last_burned = {k: (last_burned.get(k) or []) + (rot_strings.get(k) or [])
+                           for k in last_burned}
 
-        if pubmed_n == 0:
-            # Pré-validação rejeitou: não vale rodar efetch + scielo + scholar
+        if pubmed_n == 0 and (rot_strings.get("pubmed") is None or len(rot_strings.get("pubmed") or []) == 0):
             _job_done(
                 job_id,
-                message=(f"Rotação #{attempt}: termos rejeitados após {sub_attempts} "
-                         f"sub-tentativas — PubMed count=0 (LLM gerou strings hiperespecíficas, "
-                         f"pulando busca cara)"),
+                message=(f"Rotação #{attempt}: todas as substitutas PubMed tiveram count=0 "
+                         f"após {sub_attempts} sub-tentativas — pulando busca."),
             )
             return
 
+        # Insere as substitutas como NOVAS rows em search_string_stats (não toca ativas/winners).
+        with connect() as conn:
+            inserted_per_source: dict[str, int] = {}
+            for source in p.sources:
+                if source not in REGISTRY:
+                    continue
+                new_subs = rot_strings.get(source) or []
+                if not new_subs:
+                    continue
+                # próximo position = max(position) + 1
+                row = conn.execute(
+                    "SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM search_string_stats WHERE project_id=? AND source=?",
+                    (project_id, source),
+                ).fetchone()
+                next_pos = row["next_pos"] if hasattr(row, "keys") else row[0]
+                # budget proporcional ao N TOTAL de strings ativas (incluindo as novas)
+                row_active = conn.execute(
+                    "SELECT COUNT(*) AS n FROM search_string_stats WHERE project_id=? AND source=? AND status='active'",
+                    (project_id, source),
+                ).fetchone()
+                n_active = row_active["n"] if hasattr(row_active, "keys") else row_active[0]
+                n_total = max(1, n_active + len(new_subs))
+                per_source_total = MAX_RESULTS_PER_SOURCE.get(source, 200)
+                budget = max(50, per_source_total // n_total)
+                for off, text in enumerate(new_subs):
+                    if not text or len(text) < 5:
+                        continue
+                    try:
+                        conn.execute(
+                            """INSERT INTO search_string_stats
+                                  (project_id, source, string_text, position, status, max_results_budget)
+                               VALUES (?, ?, ?, ?, 'active', ?)
+                               ON CONFLICT (project_id, source, position) DO NOTHING""",
+                            (project_id, source, text, next_pos + off, budget),
+                        )
+                        inserted_per_source[source] = inserted_per_source.get(source, 0) + 1
+                    except Exception as e:
+                        print(f"  ⚠ insert rotação substring falhou: {e}")
+
+        # Atualiza projects.search_strings (legacy field) com snapshot atual de ativas
+        try:
+            with connect() as conn:
+                snap_rows = conn.execute(
+                    """SELECT source, string_text FROM search_string_stats
+                       WHERE project_id=? AND status='active'
+                       ORDER BY source, position""",
+                    (project_id,),
+                ).fetchall()
+            snap: dict[str, list[str]] = {}
+            for r in snap_rows:
+                src = r["source"] if hasattr(r, "keys") else r[0]
+                txt = r["string_text"] if hasattr(r, "keys") else r[1]
+                snap.setdefault(src, []).append(txt)
+            projects_module.update(project_id, search_strings=snap)
+        except Exception as e:
+            print(f"  ⚠ atualização de projects.search_strings falhou: {e}")
+
+        # Re-busca usando as novas substitutas (e ativas existentes via status='active')
         for source in p.sources:
             if source not in REGISTRY:
                 continue
-            await _step_search(project_id, p.workspace_id, source,
-                               new_strings.get(source, p.topic))
+            await _step_search(project_id, p.workspace_id, source)
         await _step_dedup(project_id)
-        suffix = f" (validado: PubMed count={pubmed_n})" if pubmed_n > 0 else ""
-        _job_done(job_id,
-                  message=f"Rotação #{attempt}: termos trocados e nova busca executada{suffix}")
+        ins_msg = ", ".join(f"{src}+{n}" for src, n in inserted_per_source.items()) or "0"
+        _job_done(
+            job_id,
+            message=f"Rotação #{attempt}: {ins_msg} substring(s) novas + busca refeita",
+        )
     except Exception as e:
         _job_fail(job_id, e)
         if _is_llm_fatal_error(e):
@@ -1671,6 +1946,63 @@ async def _step_verify(project_id: int) -> None:
             n_top_with_exclude == 0,
             f"{n_top_with_exclude} artigos no top sem decision='include' (deve ser 0)",
         ))
+
+        # ── Estratégia multi-substring (informativa) ──
+        try:
+            with connect() as conn:
+                ss_rows = conn.execute(
+                    """SELECT source,
+                              COUNT(*) AS total,
+                              SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) AS active_n,
+                              SUM(CASE WHEN status='burned' THEN 1 ELSE 0 END) AS burned_n,
+                              SUM(CASE WHEN expanded=1 THEN 1 ELSE 0 END) AS expanded_n
+                       FROM search_string_stats WHERE project_id=? GROUP BY source""",
+                    (p.id,),
+                ).fetchall()
+        except Exception:
+            ss_rows = []
+        if ss_rows:
+            for r in ss_rows:
+                src = r["source"] if hasattr(r, "keys") else r[0]
+                total = int(r["total"] if hasattr(r, "keys") else r[1])
+                active_n = int(r["active_n"] if hasattr(r, "keys") else r[2] or 0)
+                burned_n = int(r["burned_n"] if hasattr(r, "keys") else r[3] or 0)
+                expanded_n = int(r["expanded_n"] if hasattr(r, "keys") else r[4] or 0)
+                checklist.append((
+                    f"Multi-substring [{src}]: ≥3 substrings ativas",
+                    active_n >= 3 or active_n == total,  # OK se restam ≥3 OU se source pequeno
+                    f"{active_n}/{total} ativas, {burned_n} queimadas, {expanded_n} expandidas",
+                ))
+            checklist.append((
+                "Rebalance executou (estratégia multi-substring ativa)",
+                True,  # informativo: se chegou aqui, search_string_stats existe
+                f"{len(ss_rows)} source(s) com substrings; rebalance roda automaticamente a cada 100 análises",
+            ))
+
+        # ── Maturidade + funil de 4 estágios (informativo, só revisão sistemática) ──
+        if p.review_type == "systematic_review":
+            mat = getattr(p, "topic_maturity", None)
+            if mat:
+                checklist.append((
+                    "Maturidade do tema declarada pelo Discovery (rigor adaptativo)",
+                    mat in ("high", "moderate", "emerging"),
+                    {"high": "alta", "moderate": "moderada", "emerging": "emergente"}.get(mat, mat),
+                ))
+            else:
+                checklist.append((
+                    "Maturidade do tema declarada pelo Discovery",
+                    False,
+                    "não informada (Discovery legacy ou fallback) — não impacta inclusão",
+                ))
+            if p.criteria_md:
+                expected = ["## 1. Elegibilidade", "## 2. Piso Metodológico",
+                            "## 3. Quality Score", "## 4. Ranking"]
+                missing = [s for s in expected if s not in p.criteria_md]
+                checklist.append((
+                    "Critérios em 4 estágios (PRISMA)",
+                    len(missing) == 0,
+                    "todas as 4 seções presentes" if not missing else f"faltam: {', '.join(missing)}",
+                ))
 
         all_ok = all(ok for _, ok, _ in checklist)
         msg = json.dumps([{"check": c, "ok": ok, "detail": d} for c, ok, d in checklist], ensure_ascii=False)

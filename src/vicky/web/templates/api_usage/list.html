@@ -99,12 +99,63 @@
 </div>
 {% endif %}
 
+<!-- Total por projeto inteiro (somando discovery + analyze + DC + rotate_terms) -->
+{% if by_project %}
+<div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5 mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <h3 class="text-sm font-semibold text-slate-900">Total por projeto inteiro</h3>
+      <p class="text-xs text-slate-500 mt-0.5">Soma de todas as chamadas LLM (discovery + análise + double-check + rotação) agrupadas por projeto.</p>
+    </div>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-slate-500 border-b border-slate-100">
+          <th class="py-2 px-2">Projeto</th>
+          <th class="px-2">Tipo</th>
+          <th class="px-2 text-right">Chamadas</th>
+          <th class="px-2 text-right">Tokens</th>
+          <th class="py-2 px-2 text-right">USD</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for p in by_project %}
+        <tr class="hover:bg-slate-50/40 transition">
+          <td class="py-2.5 px-2">
+            {% if p.id %}
+            <a href="/projetos/{{ p.id }}" class="text-brand-700 hover:text-brand-900 font-medium">
+              <span class="text-slate-400 vk-mono text-[10px] mr-1">#{{ p.id }}</span>{{ (p.topic or "(sem título)")[:60] }}{% if (p.topic or '')|length > 60 %}…{% endif %}
+            </a>
+            {% else %}
+            <span class="text-slate-400 italic">— (chamada avulsa)</span>
+            {% endif %}
+          </td>
+          <td class="px-2">
+            {% if p.review_type == 'narrative_review' %}
+            <span class="inline-flex items-center rounded-full bg-violet-50 text-violet-700 text-[10px] font-medium px-2 py-0.5">artigo de resumo</span>
+            {% else %}
+            <span class="inline-flex items-center rounded-full bg-blue-50 text-blue-700 text-[10px] font-medium px-2 py-0.5">sistemática</span>
+            {% endif %}
+          </td>
+          <td class="px-2 text-right tabular-nums text-slate-600">{{ "{:,}".format(p.n_requests).replace(",", ".") }}</td>
+          <td class="px-2 text-right tabular-nums text-slate-600">{{ "{:,}".format(p.total_tokens).replace(",", ".") }}</td>
+          <td class="py-2.5 px-2 text-right tabular-nums font-semibold text-brand-700">${{ "%.4f"|format(p.cost_usd) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <!-- Breakdowns por step e modelo -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
   <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
     <h3 class="text-sm font-semibold text-slate-900 mb-3">Por etapa do pipeline</h3>
     {% if totals.by_step %}
-    <table class="w-full text-sm">
+    <div class="overflow-x-auto -mx-5 px-5">
+    <table class="w-full text-sm min-w-[420px]">
       <thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100">
         <th class="py-2">Etapa</th><th>Chamadas</th><th>Tokens</th><th class="text-right">USD</th>
       </tr></thead>
@@ -117,6 +168,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <p class="text-xs text-slate-400">Sem dados ainda.</p>
     {% endif %}
@@ -124,7 +176,8 @@
   <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
     <h3 class="text-sm font-semibold text-slate-900 mb-3">Por modelo</h3>
     {% if totals.by_model %}
-    <table class="w-full text-sm">
+    <div class="overflow-x-auto -mx-5 px-5">
+    <table class="w-full text-sm min-w-[420px]">
       <thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100">
         <th class="py-2">Modelo</th><th>Chamadas</th><th>Tokens</th><th class="text-right">USD</th>
       </tr></thead>
@@ -137,6 +190,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <p class="text-xs text-slate-400">Sem dados ainda.</p>
     {% endif %}
@@ -183,7 +237,8 @@
 
 <!-- Tabela -->
 <div class="bg-white rounded-xl border border-slate-200/70 shadow-card overflow-hidden">
-  <table class="w-full text-sm">
+  <div class="overflow-x-auto">
+  <table class="w-full text-sm min-w-[720px]">
     <thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase tracking-wide">
       <tr>
         <th class="px-4 py-3">Quando</th>
@@ -216,6 +271,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 
 <!-- Paginação simples -->

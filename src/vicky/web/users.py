@@ -28,8 +28,9 @@ PERMISSIONS = {
     "visualizador": {"view_records"},
 }
 
-# Saldo inicial pra usuários comuns. Admins sempre ficam com saldo "infinito".
-DEFAULT_INITIAL_CREDITS = 5
+# Saldo inicial pra usuários comuns: 0 (admin libera créditos sob demanda).
+# Admins sempre ficam com saldo "infinito".
+DEFAULT_INITIAL_CREDITS = 0
 ADMIN_DEFAULT_CREDITS = 9999
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -88,7 +89,8 @@ def create_user(*, email: str, password: str, name: str, role: Role,
                 credits: int | None = None) -> User:
     """Cria usuário E auto-cria seu workspace (1:1).
 
-    Se `credits` não for passado, usa default por papel: admin=9999, demais=5.
+    Se `credits` não for passado, usa default por papel: admin=9999, demais=0
+    (admin libera créditos sob demanda).
     """
     if role not in PERMISSIONS:
         raise ValueError(f"Papel inválido: {role}")
@@ -135,6 +137,32 @@ def update_user(user_id: int, *, name: str | None = None, role: Role | None = No
             values.append(user_id)
             conn.execute(f"UPDATE users SET {', '.join(fields)} WHERE id=?", values)
         return _row_to_user(conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone())
+
+
+def delete_user(user_id: int) -> None:
+    """Remove usuário e todos os dados ligados (workspace, projetos, artigos, ...).
+
+    Cascata garantida via FK ON DELETE CASCADE no schema. Admin não pode se auto-deletar
+    (caller deve checar antes — `delete_user` só faz a operação).
+    """
+    with connect() as conn:
+        existing = conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone()
+        if not existing:
+            raise LookupError(f"Usuário {user_id} não encontrado")
+        # Limpa dados em ordem topológica reversa, defensivo (caso FK não tenha CASCADE)
+        conn.execute("DELETE FROM user_decisions WHERE decided_by=?", (user_id,))
+        conn.execute("DELETE FROM llm_usage WHERE user_id=?", (user_id,))
+        # Workspaces do user → cascata em projects, articles, analyses, double_checks, jobs
+        ws_rows = conn.execute("SELECT id FROM workspaces WHERE owner_user_id=?", (user_id,)).fetchall()
+        for ws in ws_rows:
+            wsid = ws["id"]
+            conn.execute("DELETE FROM jobs WHERE project_id IN (SELECT id FROM projects WHERE workspace_id=?)", (wsid,))
+            conn.execute("DELETE FROM double_checks WHERE project_id IN (SELECT id FROM projects WHERE workspace_id=?)", (wsid,))
+            conn.execute("DELETE FROM analyses WHERE project_id IN (SELECT id FROM projects WHERE workspace_id=?)", (wsid,))
+            conn.execute("DELETE FROM articles WHERE workspace_id=?", (wsid,))
+            conn.execute("DELETE FROM projects WHERE workspace_id=?", (wsid,))
+        conn.execute("DELETE FROM workspaces WHERE owner_user_id=?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id=?", (user_id,))
 
 
 def add_credits(user_id: int, delta: int) -> User:

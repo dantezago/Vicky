@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS projects (
     years_window     INTEGER DEFAULT 5,
     target_articles  INTEGER DEFAULT 40,
     review_type      TEXT NOT NULL DEFAULT 'systematic_review',
+    rigidity_mode    TEXT NOT NULL DEFAULT 'padrao',  -- padrao | elite (só sistemática)
+    topic_maturity   TEXT,                            -- high | moderate | emerging
     criteria_md      TEXT,
     search_strings   TEXT,
     sources          TEXT DEFAULT 'pubmed,scielo,scholar',
@@ -62,6 +64,9 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at       TEXT DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'),
     updated_at       TEXT DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')
 );
+-- Idempotência pra DBs pré-v11
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS rigidity_mode TEXT NOT NULL DEFAULT 'padrao';
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS topic_maturity TEXT;
 CREATE INDEX IF NOT EXISTS idx_projects_workspace ON projects(workspace_id);
 
 -- ─── articles ──────────────────────────────────────────────────────────────
@@ -79,12 +84,37 @@ CREATE TABLE IF NOT EXISTS articles (
     external_url TEXT,
     raw_json     TEXT,
     is_duplicate INTEGER DEFAULT 0,
+    search_string_id BIGINT,    -- qual substring trouxe este artigo (estratégia multi-string)
     scraped_at   TEXT    DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'),
     PRIMARY KEY (project_id, source, external_id)
 );
+-- Idempotência: ALTER ADD COLUMN IF NOT EXISTS pra DBs que já existiam pré-v10
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS search_string_id BIGINT;
 CREATE INDEX IF NOT EXISTS idx_articles_workspace ON articles(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_articles_project   ON articles(project_id);
 CREATE INDEX IF NOT EXISTS idx_articles_doi       ON articles(doi) WHERE doi IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_articles_search_string ON articles(search_string_id) WHERE search_string_id IS NOT NULL;
+
+-- ─── search_string_stats ──────────────────────────────────────────────────
+-- 1 linha por substring de busca. Estratégia multi-string: discovery gera N
+-- substrings por source; após análise, top-K com maior inclusion_rate
+-- ganham budget extra; strings sem inclusão são "burned".
+CREATE TABLE IF NOT EXISTS search_string_stats (
+    id BIGSERIAL PRIMARY KEY,
+    project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    source TEXT NOT NULL,
+    string_text TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    collected_count INTEGER NOT NULL DEFAULT 0,
+    analyzed_count INTEGER NOT NULL DEFAULT 0,
+    included_count INTEGER NOT NULL DEFAULT 0,
+    max_results_budget INTEGER NOT NULL,
+    expanded INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'),
+    UNIQUE (project_id, source, position)
+);
+CREATE INDEX IF NOT EXISTS idx_sss_project_source_status ON search_string_stats(project_id, source, status);
 
 -- ─── analyses ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS analyses (

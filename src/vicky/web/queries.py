@@ -135,6 +135,44 @@ def get_llm_usage(usage_id: int) -> dict | None:
         return out
 
 
+def llm_usage_by_project(
+    workspace_id: int | None = None,
+    user_id: int | None = None,
+    since: str | None = None,
+) -> list[dict]:
+    """Total acumulado de tokens + custo USD por projeto inteiro.
+
+    Diferente do `get_llm_usage_summary` que mostra cada chamada/step, este
+    retorna 1 linha por projeto com a soma de TUDO (discovery + analyze +
+    double_check + rotate_terms etc). Útil pra ver de relance qual projeto
+    consumiu mais sem ter que somar mentalmente as chamadas.
+    """
+    where = ["u.project_id IS NOT NULL"]
+    params: list[Any] = []
+    if workspace_id is not None:
+        where.append("u.workspace_id=?"); params.append(workspace_id)
+    if user_id is not None:
+        where.append("u.user_id=?"); params.append(user_id)
+    if since:
+        where.append("u.created_at >= ?"); params.append(since)
+    where_sql = " AND ".join(where)
+    sql = f"""
+        SELECT u.project_id AS id,
+               p.topic       AS topic,
+               COALESCE(p.review_type, 'systematic_review') AS review_type,
+               COUNT(*)                              AS n_requests,
+               COALESCE(SUM(u.total_tokens), 0)      AS total_tokens,
+               COALESCE(SUM(u.cost_usd), 0)          AS cost_usd
+        FROM llm_usage u
+        LEFT JOIN projects p ON p.id = u.project_id
+        WHERE {where_sql}
+        GROUP BY u.project_id, p.topic, p.review_type
+        ORDER BY cost_usd DESC NULLS LAST, total_tokens DESC
+    """
+    with connect() as conn:
+        return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
 def llm_usage_avg_per_project_by_review_type() -> dict[str, Any]:
     """Médias de tokens e custo USD por projeto inteiro, agrupadas por tipo de revisão.
 
@@ -519,6 +557,33 @@ def get_record_detail(project_id: int, source: str, external_id: str) -> dict | 
                 try: d[f] = json.loads(d[f])
                 except Exception: pass
         return d
+
+
+def list_search_string_stats(project_id: int) -> list[dict]:
+    """Performance de cada substring de busca de um projeto.
+
+    Devolve linhas ordenadas por source + position com counters reais (collected,
+    analyzed, included), inclusion_rate calculado e status (active/burned).
+    Usado pelo painel "Performance das strings" no detalhe do projeto.
+    """
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT id, source, string_text, position, status,
+                      collected_count, analyzed_count, included_count,
+                      max_results_budget, expanded
+               FROM search_string_stats
+               WHERE project_id=?
+               ORDER BY source, position""",
+            (project_id,),
+        ).fetchall()
+    out: list[dict] = []
+    for r in rows:
+        d = dict(r)
+        an = int(d.get("analyzed_count") or 0)
+        inc = int(d.get("included_count") or 0)
+        d["inclusion_rate"] = (inc / an) if an > 0 else None
+        out.append(d)
+    return out
 
 
 def get_year_options(project_id: int) -> list[str]:

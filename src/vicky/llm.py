@@ -204,9 +204,11 @@ def double_check_exclusion(
 def analyze_with_raw(client: OpenAI, model: str, art: Article,
                      criteria: str | None = None,
                      topic: str | None = None,
-                     review_type: str = "systematic_review") -> tuple[Analysis, str, LLMResult]:
+                     review_type: str = "systematic_review",
+                     rigidity_mode: str = "padrao") -> tuple[Analysis, str, LLMResult]:
     result = _call(
-        client, model, analyzer_system_prompt(criteria, topic, review_type),
+        client, model,
+        analyzer_system_prompt(criteria, topic, review_type, rigidity_mode),
         analyzer_user_prompt(
             title=art.title, authors=art.authors, year=art.year,
             journal=art.journal, abstract=art.abstract, doi=art.doi,

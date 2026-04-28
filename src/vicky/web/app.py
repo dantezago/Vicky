@@ -273,13 +273,14 @@ def register_routes(app: FastAPI) -> None:
         years_window: Annotated[int, Form()] = 5,
         target_articles: Annotated[int, Form()] = 40,
         review_type: Annotated[str, Form()] = "systematic_review",
+        rigidity_mode: Annotated[str, Form()] = "padrao",
         sources: Annotated[list[str], Form()] = ["pubmed", "scielo", "scholar"],
         auto_run: Annotated[str, Form()] = "",
     ):
         p = projects_module.create(
             workspace_id=ws.id, topic=topic, objective=objective or None,
             years_window=years_window, target_articles=target_articles,
-            review_type=review_type,
+            review_type=review_type, rigidity_mode=rigidity_mode,
             sources=sources or ["pubmed"], created_by=user.id,
         )
         if auto_run == "preview":
@@ -447,7 +448,7 @@ def register_routes(app: FastAPI) -> None:
     ):
         """Permite o usuário ajustar a meta de artigos (Top N) depois."""
         p = get_project_for_workspace(project_id, ws)
-        target_articles = max(1, min(50, target_articles))
+        target_articles = max(1, min(30, target_articles))
         projects_module.update(p.id, target_articles=target_articles)
         return RedirectResponse(f"/projetos/{p.id}?msg=Meta+atualizada", status_code=303)
 
@@ -481,6 +482,17 @@ def register_routes(app: FastAPI) -> None:
             "metrics": m, "jobs": jobs,
             "is_done": p.status == "done",
         })
+
+    @app.get("/projetos/{project_id}/search-strings.json")
+    def project_search_strings_json(
+        project_id: int,
+        user: Annotated[User, Depends(require_perm("view_records"))],
+        ws: Annotated[Workspace, Depends(get_current_workspace)],
+    ):
+        """Performance de cada substring de busca (multi-substring strategy).
+        Renderizada pelo painel 'Performance das strings' com refresh 10s."""
+        p = get_project_for_workspace(project_id, ws)
+        return JSONResponse({"items": queries.list_search_string_stats(p.id)})
 
     @app.post("/projetos/{project_id}/iniciar")
     def project_run(
@@ -518,6 +530,38 @@ def register_routes(app: FastAPI) -> None:
             f"/projetos/{p.id}?msg=Pipeline+iniciado%21+Acompanhe+o+progresso+abaixo",
             status_code=303,
         )
+
+    @app.post("/projetos/{project_id}/parar")
+    def project_stop(
+        request: Request,
+        project_id: int,
+        user: Annotated[User, Depends(require_perm("view_records"))],
+        ws: Annotated[Workspace, Depends(get_current_workspace)],
+    ):
+        """Cancela o pipeline em andamento. Marca jobs running como failed e
+        retorna o projeto pra `criteria_ready` (permite re-edição de critérios)."""
+        p = get_project_for_workspace(project_id, ws)
+        if p.status not in ("discovering", "searching", "analyzing"):
+            return RedirectResponse(
+                f"/projetos/{p.id}?msg=Pipeline+n%C3%A3o+est%C3%A1+rodando",
+                status_code=303,
+            )
+        try:
+            from ..storage import connect as _connect
+            with _connect() as conn:
+                conn.execute(
+                    "UPDATE jobs SET status='failed', error='cancelado pelo usuário', "
+                    "finished_at=datetime('now') "
+                    "WHERE project_id=? AND status='running'",
+                    (p.id,),
+                )
+            projects_module.update(p.id, status="criteria_ready", error=None)
+            return RedirectResponse(
+                f"/projetos/{p.id}?msg=Pipeline+cancelado.+Voc%C3%AA+pode+editar+os+crit%C3%A9rios+e+reiniciar",
+                status_code=303,
+            )
+        except Exception as e:
+            return RedirectResponse(f"/projetos/{p.id}?error={e}", status_code=303)
 
     @app.post("/projetos/{project_id}/criterios")
     def project_save_criteria(
@@ -671,6 +715,21 @@ def register_routes(app: FastAPI) -> None:
         except Exception as e:
             return RedirectResponse(f"/usuarios?error={e}", status_code=303)
 
+    @app.post("/usuarios/{uid}/excluir")
+    def users_delete(request: Request, uid: int,
+                     user: Annotated[User, Depends(require_perm("manage_users"))]):
+        """Apaga usuário e todos os dados associados. Admin não pode se auto-deletar."""
+        if uid == user.id:
+            return RedirectResponse(
+                "/usuarios?error=Voc%C3%AA+n%C3%A3o+pode+excluir+a+pr%C3%B3pria+conta",
+                status_code=303,
+            )
+        try:
+            users.delete_user(uid)
+            return RedirectResponse("/usuarios?msg=Usu%C3%A1rio+exclu%C3%ADdo", status_code=303)
+        except Exception as e:
+            return RedirectResponse(f"/usuarios?error={e}", status_code=303)
+
     # ── Workspace settings ──────────────────────────────────────────────────
 
     @app.get("/workspace", response_class=HTMLResponse)
@@ -755,12 +814,19 @@ def register_routes(app: FastAPI) -> None:
         options = queries.llm_usage_filter_options()
         avg_by_review_type = queries.llm_usage_avg_per_project_by_review_type()
         duration_by_review_type = queries.pipeline_duration_avg_by_review_type()
+        # Total acumulado por projeto inteiro (discovery + analyze + DC + rotate),
+        # respeitando os mesmos filtros do user_id/project_id/since.
+        by_project = queries.llm_usage_by_project(
+            user_id=_to_int(user_id),
+            since=since or None,
+        )
         return render(request, "api_usage/list.html", {
             "items": items,
             "totals": totals,
             "options": options,
             "avg_by_review_type": avg_by_review_type,
             "duration_by_review_type": duration_by_review_type,
+            "by_project": by_project,
             "filters": {"step": step, "model": model, "user_id": user_id,
                         "project_id": project_id, "since": since},
             "page": page,

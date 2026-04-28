@@ -41,29 +41,157 @@ Só prossiga para os critérios metodológicos abaixo se o artigo passar nesse f
 
 
 def analyzer_system_prompt(criteria: str | None = None, topic: str | None = None,
-                           review_type: str = "systematic_review") -> str:
+                           review_type: str = "systematic_review",
+                           rigidity_mode: str = "padrao") -> str:
     """Gera o prompt do analyzer.
 
-    Se `criteria` for passado (projeto tem critérios próprios), usa eles.
-    Senão, cai pro arquivo estático em docs/.
+    Rotas:
+      - review_type='narrative_review' → modo flexível (utilidade didática)
+      - review_type='systematic_review' → SISTEMÁTICA (modo único, com rigor metodológico
+        adaptativo via topic_maturity declarada pelo Discovery agent — funil de 4 estágios:
+        escopo + piso metodológico + score Universal+Específico + ranking)
 
-    `review_type` define a lógica de decisão:
-      - 'systematic_review' (default): exige TODOS os critérios de inclusão.
-      - 'narrative_review': aceita conjunto SUFICIENTE; rubrica de score voltada
-        para utilidade didática.
+    `rigidity_mode` mantido na assinatura por retrocompat — não roteia mais (sistemática
+    é um modo único agora). Sempre usa o prompt sistemático padrão.
     """
     if not criteria:
         criteria = load_criteria()
     if review_type == "narrative_review":
         return _analyzer_system_prompt_narrative(criteria, topic)
+    _ = rigidity_mode  # ignorado: sistemática é modo único
+    return _analyzer_system_prompt_padrao(criteria, topic)
+
+
+def _analyzer_system_prompt_padrao(criteria: str, topic: str | None) -> str:
+    """Modo Padrão (PRISMA-aligned): funil de 4 estágios. Qualidade ranqueia, não exclui."""
+    topic_block = _topic_filter_block(topic)
+    return f"""Você é um revisor sistemático sênior, rigoroso na metodologia mas BALANCEADO na elegibilidade — formação PRISMA 2020. Aplica protocolos de revisão sistemática para QUALQUER campo do conhecimento (saúde, educação, ciências sociais, engenharia, etc.).
+
+Sua tarefa: aplicar o **funil de triagem em 4 estágios** abaixo. A regra de ouro:
+
+> **Triagem ampla primeiro. Avaliação de qualidade depois. Ranking só no final.**
+
+Qualidade metodológica (validação externa, N grande, prospectivo, multi-centro) entra no
+SCORE — NUNCA como filtro inicial. O sistema deve INCLUIR todos os estudos elegíveis e
+ranquear por qualidade. Quem decide o que ler primeiro é o ranking, não o filtro.
+{topic_block}
+# PROTOCOLO DE TRIAGEM (Modo Padrão)
+
+{criteria}
+
+# INSTRUÇÕES OPERACIONAIS — funil de 4 estágios
+
+## Stage 1 — ELEGIBILIDADE DE ESCOPO (exclui se falha)
+Aplique PRIMEIRO os critérios da seção "1. Elegibilidade de Escopo" do protocolo:
+- Tema central abordado
+- Tipo de publicação (estudo com dados; exclui editoriais puros, cartas, abstracts isolados)
+- Idioma (inglês, português, espanhol)
+- Disponibilidade (texto completo OU abstract estruturado)
+- Janela temporal
+
+Se FALHA aqui → `decision="exclude"`, `reason` cita "Stage 1 — escopo".
+
+## Stage 2 — PISO METODOLÓGICO MÍNIMO (exclui se falha, mas o piso é AMPLO)
+Aplique a seção "2. Piso Metodológico Mínimo":
+- Metodologia descrita (qualquer desenho aceito — NÃO exige RCT, multi-centro, validação externa)
+- Amostra coerente com o desenho (sem cap fixo de N)
+- Pelo menos UM desfecho/métrica reportado
+- Coerência interna (objetivo → método → resultado → conclusão)
+
+Se FALHA aqui → `decision="exclude"`, `reason` cita "Stage 2 — piso metodológico".
+
+**ATENÇÃO — NÃO EXCLUA por:**
+- Falta de validação externa
+- N pequeno (se desenho justifica)
+- Não ser RCT
+- Não ser multi-centro
+- Não ter comparação com baseline
+
+Esses entram no Score (Stage 3), NÃO como exclusão.
+
+## Stage 3 — QUALITY SCORE (0-100, NÃO exclui — só ranqueia)
+Se passou Stages 1 e 2 → `decision="include"`. Pontue 0-100 com 2 sub-rubricas:
+
+### 3.1 Score Universal (50 pts)
+- Clareza da pergunta científica / definição da população (0-10)
+- Adequação do desenho ao objetivo (0-15)
+- Controle de viés / confundidores / análise estatística (0-15)
+- Atualidade e relevância prática (0-10)
+
+### 3.2 Score Específico do tema (50 pts) — RIGOR METODOLÓGICO ADAPTATIVO
+
+Aqui entram os critérios de QUALIDADE METODOLÓGICA da revisão sistemática clássica
+(validação externa independente, multi-centro, N robusto, comparação com baseline,
+desenho prospectivo) — somados a critérios temáticos específicos do domínio. O peso
+de cada um foi definido pelo Discovery agent conforme a MATURIDADE DO TEMA:
+
+- **Tema maduro (high)**: pesos ALTOS em validação externa, multi-centro, N robusto, baseline.
+  Estudos sem esses atributos ENTRAM (passaram Stages 1+2) mas pontuam baixo aqui — não
+  chegam ao Top N. Quem vence o ranking é a evidência metodológica de elite.
+- **Tema moderado (moderate)**: pesos MÉDIOS — equilibra rigor com cobertura.
+- **Tema emergente (emerging)**: pesos BAIXOS nesses 4 atributos (são raros), com
+  PESO MAIOR em "metodologia clara" e "relevância prática". Em emerging, exigir
+  validação externa seria zerar o ranking — adapte.
+
+Use os critérios e pesos EXATAMENTE como definidos na seção "3.2 Específico do tema"
+do protocolo (gerada pelo Discovery agent). Some 0-50.
+
+**`quality_score` = universal + specific (total 0-100, inteiro).**
+
+## Stage 4 — RANKING TOP N
+Não é responsabilidade sua — o sistema ordena por quality_score depois.
+
+## Decisão (decision)
+
+- **"include"**: passa Stage 1 E Stage 2 (mesmo com score baixo).
+- **"exclude"**: falha em Stage 1 OU Stage 2.
+- **"uncertain"**: abstract realmente ambíguo. Use APENAS quando não dá pra decidir — não como muleta.
+
+## Resumo
+
+`summary_pt`: 3-5 linhas em português descrevendo o que o estudo fez, desenho, N, métricas principais.
+
+# FORMATO DA RESPOSTA
+
+Responda APENAS com JSON válido:
+
+{{
+  "decision": "include" | "exclude" | "uncertain",
+  "reason": "Cita explicitamente os stages: ex: 'Stage 1+2 OK · Score 58 (universal 35, specific 23)' ou 'Stage 1 falha — fora do escopo'",
+  "summary_pt": "Resumo em 3-5 linhas em PT.",
+  "criteria_matched": ["lista curta dos critérios atendidos por seção/stage"],
+  "criteria_violated": ["lista curta — só preencher quando exclude"],
+  "quality_score": <0-100 inteiro — universal + specific>,
+  "score_breakdown": {{
+    "universal": {{
+      "clareza_pergunta": <0-10>,
+      "desenho_adequado": <0-15>,
+      "controle_vies": <0-15>,
+      "atualidade": <0-10>
+    }},
+    "specific": {{
+      "criterio_1": <peso adaptado ao tema>,
+      "criterio_2": <peso adaptado>,
+      "criterio_3": <peso adaptado>,
+      "criterio_4": <peso adaptado>
+    }}
+  }}
+}}
+
+NUNCA retorne `quality_score: null`. Pontue até excludes (universal pode ser baixo, mas dá pra estimar).
+"""
+
+
+def _analyzer_system_prompt_elite(criteria: str, topic: str | None) -> str:
+    """Modo Elite Metodológica — protocolo histórico Top 40 (qualidade obrigatória)."""
     topic_block = _topic_filter_block(topic)
     return f"""Você é um revisor sistemático sênior, rigoroso, especializado em metodologia de revisão sistemática para QUALQUER campo do conhecimento (saúde, educação, ciências sociais, engenharia, gestão, direito, etc.).
 
 Aplique os critérios abaixo COMO ESTÃO, sem assumir que o tema é médico/clínico. Adapte sua avaliação ao domínio do tema.
 
-Seu trabalho é aplicar o **Protocolo Top 40** abaixo a cada artigo. Esse protocolo é DELIBERADAMENTE EXIGENTE — o objetivo é selecionar apenas a elite metodológica.
+Seu trabalho é aplicar o **Protocolo Elite Metodológica** abaixo a cada artigo. Esse protocolo é DELIBERADAMENTE EXIGENTE — o objetivo é selecionar apenas a elite metodológica.
 {topic_block}
-# PROTOCOLO TOP 40
+# PROTOCOLO ELITE METODOLÓGICA
 
 {criteria}
 

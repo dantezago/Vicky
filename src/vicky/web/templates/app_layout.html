@@ -1,11 +1,18 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="min-h-screen flex bg-slate-50/60">
+<div class="min-h-screen flex bg-slate-50/60" x-data="{mobileMenu: false}" @keydown.escape.window="mobileMenu=false">
   {% include "components/sidebar.html" %}
 
   <div class="flex-1 flex flex-col min-w-0">
     {# Header inline para que os blocks {% block page_title %} funcionem #}
-    <header class="min-h-16 bg-white/95 backdrop-blur border-b border-slate-200/80 flex items-start lg:items-center justify-between gap-4 px-6 lg:px-10 py-4 sticky top-0 z-30 supports-[backdrop-filter]:bg-white/85">
+    <header class="min-h-16 bg-white/95 backdrop-blur border-b border-slate-200/80 flex items-start lg:items-center justify-between gap-3 px-4 sm:px-6 lg:px-10 py-3 sm:py-4 sticky top-0 z-30 supports-[backdrop-filter]:bg-white/85">
+      <button @click="mobileMenu=true"
+              class="lg:hidden inline-flex items-center justify-center h-9 w-9 rounded-md hover:bg-slate-100 text-slate-700 shrink-0 mt-0.5"
+              aria-label="Abrir menu">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
       <div class="min-w-0 flex-1">
         {% block page_eyebrow %}{% endblock %}
         <h1 class="font-display text-[20px] lg:text-[22px] font-bold text-slate-900 leading-[1.3] tracking-tightest">{% block page_title %}{{ app_name }}{% endblock %}</h1>
@@ -40,7 +47,9 @@
             </span>
             <div class="hidden sm:block text-left leading-tight">
               <div class="text-sm font-semibold text-slate-900">{{ user.name }}</div>
-              <div class="vk-mono text-[10px] uppercase tracking-[0.14em] text-slate-400">{{ user.role_label }}</div>
+              {% if user.role == 'admin' %}
+              <div class="vk-mono text-[10px] uppercase tracking-[0.14em] text-slate-400">Administrador</div>
+              {% endif %}
             </div>
             <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
@@ -51,7 +60,9 @@
                class="absolute right-0 top-14 z-30 w-64 bg-white rounded-2xl shadow-card-lg border border-slate-200/70 py-2 text-sm overflow-hidden">
             <div class="px-4 py-3 border-b border-slate-100 bg-gradient-to-br from-brand-50/40 to-transparent">
               <div class="font-semibold text-slate-900 truncate">{{ user.email }}</div>
-              <div class="vk-mono text-[10px] uppercase tracking-[0.14em] text-slate-400 mt-0.5">{{ user.role_label }}</div>
+              {% if user.role == 'admin' %}
+              <div class="vk-mono text-[10px] uppercase tracking-[0.14em] text-slate-400 mt-0.5">Administrador</div>
+              {% endif %}
             </div>
             <div class="px-4 py-2 border-b border-slate-100 vk-mono text-[10px] uppercase tracking-[0.14em] text-slate-500 flex items-center justify-between">
               <span>Créditos</span>
@@ -72,11 +83,11 @@
 
     {% block above_main %}{% endblock %}
 
-    <main class="flex-1 px-6 py-8 lg:px-10">
+    <main class="flex-1 px-4 sm:px-6 py-6 sm:py-8 lg:px-10">
       {% block content %}{% endblock %}
     </main>
 
-    <footer class="px-6 py-5 vk-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 border-t border-slate-200/60 flex items-center justify-between">
+    <footer class="px-4 sm:px-6 py-5 vk-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 border-t border-slate-200/60 flex items-center justify-between">
       <span>Vicky · Triagem assistida por IA</span>
       <span>{{ user.name if user else "" }}</span>
     </footer>

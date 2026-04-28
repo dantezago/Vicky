@@ -18,9 +18,13 @@
   <div class="flex items-center gap-3 flex-wrap">
     {{ status_badge(p.status) }}
     {% if p.review_type == 'narrative_review' %}
-      <span class="inline-flex items-center gap-1 rounded-md bg-violet-100 text-violet-800 text-xs font-medium px-2 py-1 border border-violet-200">📝 Artigo de resumo</span>
+      <span class="inline-flex items-center gap-1 rounded-md bg-violet-100 text-violet-800 text-xs font-medium px-2 py-1 border border-violet-200" title="Critérios flexíveis priorizando relevância e didática">📝 Revisão narrativa</span>
     {% else %}
-      <span class="inline-flex items-center gap-1 rounded-md bg-slate-100 text-slate-700 text-xs font-medium px-2 py-1 border border-slate-200">📐 Revisão sistemática</span>
+      <span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium px-2 py-1 border border-emerald-200" title="Funil PRISMA com rigor metodológico adaptativo — Discovery agent ajusta pesos conforme maturidade do tema">🔬 Revisão sistemática</span>
+    {% endif %}
+    {% if p.topic_maturity %}
+      {% set mat_label = {'high':'maturidade alta','moderate':'maturidade moderada','emerging':'tema emergente'} %}
+      <span class="inline-flex items-center gap-1 rounded-md bg-slate-50 text-slate-600 text-[11px] font-medium px-2 py-1 border border-slate-200" title="Maturidade detectada pelo Discovery agent — adapta pesos do score metodológico">✦ {{ mat_label.get(p.topic_maturity, p.topic_maturity) }}</span>
     {% endif %}
     {% for s in p.sources %}{{ source_badge(s) }}{% endfor %}
   </div>
@@ -66,7 +70,7 @@
         </span>
       </button>
     </form>
-    {% elif p.status in ['searching','analyzing'] %}
+    {% elif p.status in ['searching','analyzing','discovering'] %}
     <span class="inline-flex items-center gap-1.5 text-xs text-amber-700 font-medium bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
       <svg class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -74,6 +78,16 @@
       </svg>
       Pipeline rodando
     </span>
+    <form action="/projetos/{{ p.id }}/parar" method="post" class="inline"
+          onsubmit="return confirm('Tem certeza que deseja PARAR o pipeline em andamento? Os artigos já analisados são preservados, mas a coleta atual será interrompida e você precisará reiniciar o pipeline depois.');">
+      <button type="submit"
+              class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm bg-rose-600 hover:bg-rose-700 text-white font-medium shadow-sm">
+        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <rect x="6" y="6" width="12" height="12" rx="1"/>
+        </svg>
+        Parar pipeline
+      </button>
+    </form>
     {% endif %}
 
     <!-- Menu mais (...) com excluir -->
@@ -133,15 +147,16 @@
 </div>
 {% endif %}
 
+{# Mobile-first: sidebar (Meta do Top + Resumo) vem PRIMEIRO via order-1; main vem depois (order-2).
+   No desktop (lg+) reseta para ordem natural — main na esquerda (col-span-2), aside na direita. #}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
 
   <!-- Coluna principal: pipeline + cards -->
-  <div class="lg:col-span-2 space-y-6">
+  <div class="order-2 lg:order-none lg:col-span-2 space-y-6">
 
     {# ── Painel "como a IA trabalha" (durante pipeline) ─────────────────── #}
     {% if p.status in ['discovering','searching','analyzing'] %}
     {% set is_narrative = p.review_type == 'narrative_review' %}
-    {% set min_floor = 200 if is_narrative else 500 %}
     <div class="bg-gradient-to-br from-violet-50 via-white to-brand-50 border border-violet-200 rounded-xl shadow-card overflow-hidden">
       <div class="px-6 py-4 border-b border-violet-200/70 flex items-center gap-3">
         <div class="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600 text-white">
@@ -151,9 +166,9 @@
           <h3 class="text-sm font-semibold text-slate-900">A Vicky está trabalhando para você</h3>
           <p class="text-xs text-slate-600 mt-0.5">
             {% if is_narrative %}
-              Modo <strong>artigo de resumo</strong>: a IA varre no mínimo <strong>{{ min_floor }} artigos</strong> e aplica 4 pilares narrativos antes de fechar o Top.
+              Modo <strong>artigo de resumo</strong>: a IA aplica 4 pilares narrativos em duas passadas independentes antes de fechar o Top.
             {% else %}
-              Modo <strong>revisão sistemática</strong>: a IA varre no mínimo <strong>{{ min_floor }} artigos</strong> e aplica 4 pilares metodológicos antes de fechar o Top.
+              Modo <strong>revisão sistemática</strong>: a IA aplica 4 pilares metodológicos em duas passadas independentes antes de fechar o Top.
             {% endif %}
           </p>
         </div>
@@ -198,7 +213,7 @@
           {% endif %}
         </div>
 
-        <div class="mt-4 grid grid-cols-3 gap-2 text-[11px] text-slate-700">
+        <div class="mt-4 grid grid-cols-2 gap-2 text-[11px] text-slate-700">
           <div class="bg-white rounded-md px-2.5 py-2 border border-slate-200 text-center">
             <div class="text-base font-bold text-violet-700 tabular-nums">2×</div>
             <div class="leading-tight">passadas independentes do LLM (analyze + double-check)</div>
@@ -207,14 +222,10 @@
             <div class="text-base font-bold text-violet-700 tabular-nums">0–100</div>
             <div class="leading-tight">Quality Score por artigo, com critérios atendidos e violados</div>
           </div>
-          <div class="bg-white rounded-md px-2.5 py-2 border border-slate-200 text-center">
-            <div class="text-base font-bold text-violet-700 tabular-nums">≥{{ min_floor }}</div>
-            <div class="leading-tight">artigos varridos antes do corte final</div>
-          </div>
         </div>
 
         <p class="mt-4 text-[11px] text-slate-500 italic leading-relaxed">
-          A IA nunca para antes do mínimo. Mesmo se a meta do Top já tiver sido atingida, ela continua varrendo até bater o piso de {{ min_floor }} artigos analisados — é assim que a curadoria fica confiável e nada de relevante passa em branco.
+          A Vicky varre o universo de artigos disponível, aplica os critérios em duas passadas independentes e separa os melhores — para que a curadoria fique confiável e nada de relevante passe em branco.
         </p>
       </div>
     </div>
@@ -243,16 +254,12 @@
         <!-- Métricas de PROCESSO -->
         <div>
           <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Processo de triagem</div>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-            <div class="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
-              <div class="text-xs text-slate-500">Artigos varridos</div>
-              <div class="text-xl font-bold text-slate-900 tabular-nums mt-0.5">{{ m.total_articles }}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">piso de {{ min_floor_done }}</div>
-            </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+            {# Card unificado: usa total_articles (sempre o maior valor) e mantém o título "Analisados pela IA" #}
             <div class="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
               <div class="text-xs text-slate-500">Analisados pela IA</div>
-              <div class="text-xl font-bold text-slate-900 tabular-nums mt-0.5">{{ m.analyzed }}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">cobertura {{ ((m.analyzed / m.total_articles * 100)|round|int) if m.total_articles else 0 }}%</div>
+              <div class="text-xl font-bold text-slate-900 tabular-nums mt-0.5">{{ m.total_articles }}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">duas passadas independentes</div>
             </div>
             <div class="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
               <div class="text-xs text-slate-500">Auditados (double-check)</div>
@@ -311,14 +318,14 @@
         {% endif %}
 
         {# ── Frase de fechamento ramificada por caminho de saída ──
-           Determina qual das 3 condições terminou o pipeline:
-             1) SUCCESS_FULL: Top N atingido (meta cumprida)
-             2) MAX_REACHED:  varreu cap de 1300 sem chegar no Top N
-             3) SOURCE_EXHAUSTED: fonte esgotada antes do cap (tema muito específico) #}
-        {% set max_total = 1300 %}
+           1) SUCCESS_FULL: Top N atingido (meta cumprida)
+           2) MAX_REACHED:  análise completa sem chegar no Top N
+           3) SOURCE_EXHAUSTED: literatura limitada antes da análise completa
+           Não mencionamos piso/teto numérico ao usuário — esses limites são detalhe de implementação. #}
         {% set top_count = m.included_top|default(0) %}
         {% set reached_target = top_count >= p.target_articles %}
-        {% set hit_max = m.analyzed >= max_total %}
+        {% set is_systematic = p.review_type != 'narrative_review' %}
+        {% set hit_max = (not reached_target) and m.analyzed >= m.total_articles - 5 and m.analyzed >= 1500 %}
         {% set is_full_success = reached_target %}
         {% set is_max_reached = (not reached_target) and hit_max %}
         {% set is_source_exhausted = (not reached_target) and (not hit_max) %}
@@ -326,29 +333,35 @@
         {% if is_full_success %}
         <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-xs text-emerald-900 leading-relaxed">
           {% if is_narrative_done %}
-            ✓ <strong>Modo artigo de resumo concluído com sucesso.</strong> A Vicky varreu {{ m.total_articles }} artigos (piso de {{ min_floor_done }}, teto de {{ max_total }}), analisou {{ m.analyzed }} pela IA em duas passadas independentes e separou os {{ top_count }} mais úteis para o seu texto — atingindo a sua meta de {{ p.target_articles }}.
+            ✓ <strong>Modo artigo de resumo concluído com sucesso.</strong> A Vicky varreu {{ m.total_articles }} artigos, analisou em duas passadas independentes e separou os <strong>{{ top_count }}</strong> mais úteis para o seu texto — atingindo a sua meta de {{ p.target_articles }}.
           {% else %}
-            ✓ <strong>Revisão sistemática concluída com sucesso.</strong> A Vicky varreu {{ m.total_articles }} artigos (piso de {{ min_floor_done }}, teto de {{ max_total }}), analisou {{ m.analyzed }} pela IA aplicando critérios PICO + qualidade metodológica em duas passadas e elegeu os {{ top_count }} melhores — atingindo a sua meta de {{ p.target_articles }}.
+            ✓ <strong>Revisão sistemática concluída com sucesso.</strong> A Vicky varreu {{ m.total_articles }} artigos, aplicou critérios PICO + qualidade metodológica em duas passadas e elegeu os <strong>{{ top_count }}</strong> melhores — atingindo a sua meta de {{ p.target_articles }}.
           {% endif %}
         </div>
         {% elif is_max_reached %}
         <div class="rounded-lg bg-amber-50 border border-amber-300 px-4 py-3 text-xs text-amber-900 leading-relaxed space-y-1.5">
-          <p>⚠️ <strong>Análise completa: máximo de {{ max_total }} artigos varridos.</strong></p>
-          <p>Para manter o processo correto e perfeito, a Vicky analisou o teto de <strong>{{ m.analyzed }} artigos</strong> exigido pela regra de qualidade. Mesmo assim, só consegui chegar no <strong>Top {{ top_count }}</strong> — a sua meta era {{ p.target_articles }}.</p>
-          <p>Isso significa que o tema é exigente: poucos estudos atendem simultaneamente aos critérios PICO e ao patamar mínimo de qualidade metodológica. <strong>É um resultado válido e auditável</strong> — a ferramenta varreu o cap exigido pela regra de qualidade antes de parar. Para chegar perto da sua meta, considere afrouxar critérios PICO ou aceitar o Top {{ top_count }} como resultado final.</p>
+          <p>⚠️ <strong>Análise completa.</strong> A Vicky varreu o universo disponível e chegou no <strong>Top {{ top_count }}</strong> — a sua meta era {{ p.target_articles }}.</p>
+          <p>Isso significa que o tema é exigente: poucos estudos atendem simultaneamente aos critérios PICO e ao patamar de qualidade metodológica. <strong>É um resultado válido e auditável.</strong></p>
+          {% if is_systematic %}
+          <p class="bg-amber-100/60 border border-amber-300/70 rounded-md px-3 py-2 mt-2">
+            💡 <strong>Sugestão:</strong> rode o mesmo tema como <strong>revisão narrativa / artigo de resumo</strong> — os critérios são menos rigorosos e tendem a incluir mais artigos. Crie um novo projeto com o mesmo tema e selecione "Artigo de resumo" no tipo de revisão.
+          </p>
+          {% else %}
+          <p>Para chegar perto da sua meta, considere afrouxar os critérios ou aceitar o Top {{ top_count }} como resultado final.</p>
+          {% endif %}
         </div>
         {% else %} {# is_source_exhausted #}
         <div class="rounded-lg bg-blue-50 border border-blue-300 px-4 py-3 text-xs text-blue-900 leading-relaxed space-y-1.5">
-          <p>ℹ️ <strong>Análise completa: fonte da literatura esgotada.</strong></p>
-          <p>As bases científicas (PubMed, SciELO, Google Scholar) retornaram apenas <strong>{{ m.total_articles }} artigos</strong> sobre esse tema. A IA analisou todos os {{ m.analyzed }} relevantes e encontrou <strong>{{ top_count }}</strong> que atendem aos critérios — a sua meta era {{ p.target_articles }}.</p>
-          <p><strong>Isso não é falha da ferramenta.</strong> O tema é muito específico, e a literatura disponível é limitada nas bases consultadas. A Vicky tentou várias alavancas antes de aceitar o esgotamento:</p>
-          <ul class="list-disc list-inside ml-2 space-y-0.5 text-blue-800">
-            <li>Até 20 rotações de termos pelo agente de descoberta</li>
-            <li>Até 50 expansões mecânicas da consulta</li>
-            <li>Até 5 reformulações radicais (ângulos novos do agente)</li>
-            <li>Até 3 expansões automáticas da janela temporal (atual: {{ p.years_window }} anos)</li>
-          </ul>
-          <p>Para encontrar mais artigos, considere reformular o tema com termos mais amplos ou afrouxar critérios PICO.</p>
+          <p>ℹ️ <strong>Análise completa: literatura limitada para esse tema.</strong></p>
+          <p>As bases científicas (PubMed, SciELO, Google Scholar) retornaram apenas <strong>{{ m.total_articles }} artigos</strong> sobre esse tema, e <strong>{{ top_count }}</strong> atendem aos critérios — a sua meta era {{ p.target_articles }}.</p>
+          <p><strong>Isso não é falha da ferramenta.</strong> O tema é muito específico, e a literatura disponível é limitada nas bases consultadas. A Vicky tentou várias estratégias de busca (rotações de termos, expansões da consulta, ampliação da janela temporal) antes de aceitar o esgotamento.</p>
+          {% if is_systematic %}
+          <p class="bg-blue-100/60 border border-blue-300/70 rounded-md px-3 py-2 mt-2">
+            💡 <strong>Sugestão:</strong> rode o mesmo tema como <strong>revisão narrativa / artigo de resumo</strong> — os critérios são menos rigorosos e mais artigos costumam ser incluídos. Crie um novo projeto com o mesmo tema e selecione "Artigo de resumo".
+          </p>
+          {% else %}
+          <p>Para encontrar mais artigos, considere reformular o tema com termos mais amplos.</p>
+          {% endif %}
         </div>
         {% endif %}
       </div>
@@ -371,16 +384,9 @@
       </div>
 
       {% if top_n|length < p.target_articles %}
-      {% set _max_total = 1300 %}
-      {% set _hit_max = m.analyzed >= _max_total %}
-      <div class="px-6 py-3 {% if _hit_max %}bg-amber-50 border-b border-amber-200 text-amber-800{% else %}bg-blue-50 border-b border-blue-200 text-blue-800{% endif %} text-xs">
-        {% if _hit_max %}
-          ⚠️ A IA varreu o máximo de <strong>{{ m.analyzed }} artigos</strong> e encontrou apenas <strong>{{ top_n|length }}</strong> que atendem aos critérios — sua meta era {{ p.target_articles }}.
-          O tema é exigente: poucos estudos recentes cumprem PICO + qualidade metodológica.
-        {% else %}
-          ℹ️ As bases científicas retornaram apenas <strong>{{ m.total_articles }} artigos</strong> sobre esse tema, e <strong>{{ top_n|length }}</strong> atendem aos critérios — sua meta era {{ p.target_articles }}.
-          O tema é muito específico; a literatura disponível é limitada (não é falha da ferramenta).
-        {% endif %}
+      <div class="px-6 py-3 bg-blue-50 border-b border-blue-200 text-blue-800 text-xs">
+        ℹ️ A Vicky encontrou <strong>{{ top_n|length }}</strong> artigos que atendem aos critérios — sua meta era {{ p.target_articles }}.
+        O tema é exigente; poucos estudos cumprem PICO + qualidade metodológica.
         <strong>O sistema nunca inclui artigos que não atendem aos critérios.</strong>
       </div>
       {% endif %}
@@ -429,11 +435,27 @@
         {% if p.search_strings %}
         <div>
           <h4 class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Strings de busca</h4>
-          <div class="space-y-2">
+          <div class="space-y-3">
             {% for source, qs in p.search_strings.items() if qs %}
             <div>
-              <div class="text-xs text-slate-500 mb-1">{{ source }}</div>
-              <pre class="text-xs bg-slate-50 border border-slate-200 rounded p-2 overflow-x-auto whitespace-pre-wrap">{{ qs }}</pre>
+              <div class="text-xs text-slate-500 mb-1">
+                {{ source }}
+                {% if qs is iterable and qs is not string %}
+                <span class="text-slate-400 vk-mono text-[10px]"> · {{ qs|length }} substrings</span>
+                {% endif %}
+              </div>
+              {% if qs is iterable and qs is not string %}
+                <div class="space-y-1.5">
+                  {% for q in qs %}
+                  <div class="flex items-start gap-2">
+                    <span class="shrink-0 inline-flex items-center justify-center bg-brand-100 text-brand-700 text-[10px] vk-mono font-semibold rounded px-1.5 py-0.5 mt-0.5">#{{ loop.index }}</span>
+                    <pre class="flex-1 text-xs bg-slate-50 border border-slate-200 rounded p-2 overflow-x-auto whitespace-pre-wrap m-0">{{ q }}</pre>
+                  </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <pre class="text-xs bg-slate-50 border border-slate-200 rounded p-2 overflow-x-auto whitespace-pre-wrap">{{ qs }}</pre>
+              {% endif %}
             </div>
             {% endfor %}
           </div>
@@ -522,7 +544,10 @@
           'verify': 'Verificação final (checklist)',
         } %}
         <script>window.__stepLabels_{{ p.id }} = {{ step_labels|tojson }};</script>
-        <template x-for="job in jobs" :key="job.id">
+        <p class="text-[11px] text-slate-400 mb-2" x-show="jobs.length > 10">
+          Mostrando as 10 ações mais recentes (de <span x-text="jobs.length"></span> totais).
+        </p>
+        <template x-for="job in jobs.slice(-10)" :key="job.id">
           <div class="flex items-center gap-3">
             <template x-if="job.status === 'success'">
               <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
@@ -573,26 +598,112 @@
         </div>
       </div>
     </details>
+
+    {# ── Painel: performance das substrings (estratégia multi-string) ── #}
+    <details class="bg-white rounded-xl border border-slate-200/70 shadow-card p-6 group"
+             x-data="window.__searchStrings_{{ p.id }}"
+             x-init="loadOnce()"
+             @toggle="if ($event.target.open) refresh()">
+      <summary class="flex items-center justify-between text-sm font-semibold text-slate-900 cursor-pointer list-none">
+        <span>🎯 Performance das strings de busca <span class="text-xs font-normal text-slate-500 ml-1">(taxa de inclusão por substring)</span></span>
+        <svg class="h-4 w-4 transition group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      </summary>
+      <div class="mt-4">
+        <p class="text-[11px] text-slate-500 mb-3 leading-snug">
+          Cada substring busca um ângulo diferente do tema. Após a primeira passada de análise, as substrings com maior taxa de inclusão ganham orçamento adicional ("expand winners"); as que retornam 0 inclusões em ≥30 análises são "queimadas" e não rodam mais.
+        </p>
+        <template x-if="items.length === 0">
+          <div class="text-center text-xs text-slate-400 py-6">Aguardando geração de substrings pelo Discovery agent…</div>
+        </template>
+        <template x-if="items.length > 0">
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-left text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                  <th class="py-2 pr-2">Source</th>
+                  <th class="pr-2">#</th>
+                  <th class="pr-2">String</th>
+                  <th class="pr-2">Status</th>
+                  <th class="pr-2 text-right">Coletados</th>
+                  <th class="pr-2 text-right">Analisados</th>
+                  <th class="pr-2 text-right">Incluídos</th>
+                  <th class="text-right">Taxa</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <template x-for="r in items" :key="r.id">
+                  <tr :class="r.status === 'burned' ? 'opacity-60 bg-slate-50/50' : ''">
+                    <td class="py-2 pr-2 vk-mono text-slate-500" x-text="r.source"></td>
+                    <td class="pr-2 vk-mono text-slate-400" x-text="'#' + (r.position + 1)"></td>
+                    <td class="pr-2 max-w-md">
+                      <div class="line-clamp-2 text-slate-700 vk-mono text-[10px]" :title="r.string_text" x-text="r.string_text"></div>
+                    </td>
+                    <td class="pr-2">
+                      <template x-if="r.status === 'active' && r.expanded === 1">
+                        <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-medium px-2 py-0.5">★ winner 2×</span>
+                      </template>
+                      <template x-if="r.status === 'active' && r.expanded !== 1">
+                        <span class="inline-flex items-center rounded-full bg-blue-50 text-blue-700 text-[10px] font-medium px-2 py-0.5">ativa</span>
+                      </template>
+                      <template x-if="r.status === 'burned'">
+                        <span class="inline-flex items-center rounded-full bg-slate-200 text-slate-600 text-[10px] font-medium px-2 py-0.5">queimada</span>
+                      </template>
+                    </td>
+                    <td class="pr-2 text-right tabular-nums" x-text="r.collected_count"></td>
+                    <td class="pr-2 text-right tabular-nums" x-text="r.analyzed_count"></td>
+                    <td class="pr-2 text-right tabular-nums font-semibold" x-text="r.included_count"></td>
+                    <td class="text-right tabular-nums"
+                        :class="r.inclusion_rate === null ? 'text-slate-400' : (r.inclusion_rate >= 0.05 ? 'text-emerald-700 font-semibold' : 'text-slate-600')"
+                        x-text="r.inclusion_rate === null ? '—' : (Math.round(r.inclusion_rate * 1000) / 10) + '%'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+    </details>
+
+    <script>
+      window.__searchStrings_{{ p.id }} = {
+        items: [],
+        projectId: {{ p.id }},
+        status: {{ p.status|tojson }},
+        _poller: null,
+        async loadOnce() {
+          await this.refresh();
+          // Polling só enquanto pipeline está rodando
+          if (this.status !== 'done' && this.status !== 'failed') {
+            this._poller = setInterval(() => this.refresh(), 10000);
+          }
+        },
+        async refresh() {
+          try {
+            const r = await fetch('/projetos/' + this.projectId + '/search-strings.json');
+            if (!r.ok) return;
+            const d = await r.json();
+            this.items = d.items || [];
+          } catch (e) { /* silencia */ }
+        },
+      };
+    </script>
   </div>
 
-  <!-- Sidebar: métricas -->
-  <aside class="space-y-5">
-    <!-- Meta de artigos (editável) -->
+  <!-- Sidebar: métricas (no mobile aparece ANTES do main) -->
+  <aside class="order-1 lg:order-none space-y-5"
+         x-data="window.__resumoInitial_{{ p.id }}">
+    <!-- Meta de artigos (editável) — número acompanha "Incluídos" do card de resumo, em tempo real, até o teto do Top -->
     <div class="bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl shadow-card p-5 text-white" x-data="{editing: false}">
       <div class="flex items-center justify-between">
         <div>
           <div class="text-xs uppercase tracking-wider opacity-90 font-semibold">🎯 Meta do Top</div>
           <div class="mt-2 text-4xl font-bold tabular-nums" x-show="!editing">
-            {{ m.included_top|default(0) }}<span class="text-2xl opacity-70">/{{ p.target_articles }}</span>
+            <span x-text="Math.min(included, {{ p.target_articles }})">{{ [m.included, p.target_articles]|min }}</span><span class="text-2xl opacity-70">/{{ p.target_articles }}</span>
           </div>
           <div class="mt-1 text-xs opacity-90" x-show="!editing">
-            {% if m.included_top >= p.target_articles %}
-              ✓ Top completo · {{ m.below_cutoff|default(0) }} elegíveis fora do corte
-            {% elif m.included > 0 %}
-              ⚠ só {{ m.included }} atendem aos critérios
-            {% else %}
-              Aguardando análise
-            {% endif %}
+            <span x-show="included >= {{ p.target_articles }}">✓ Top completo<span x-show="included > {{ p.target_articles }}"> · <span x-text="(included - {{ p.target_articles }})"></span> elegíveis fora do corte</span></span>
+            <span x-show="included > 0 && included < {{ p.target_articles }}">⚠ só <span x-text="included"></span> atendem aos critérios</span>
+            <span x-show="included == 0">Aguardando análise</span>
           </div>
         </div>
         {% if user.can("view_records") %}
@@ -602,10 +713,10 @@
 
       <!-- Form de edição -->
       <form action="/projetos/{{ p.id }}/atualizar" method="post" x-show="editing" x-cloak class="mt-3 space-y-2">
-        <label class="block text-xs opacity-90">Quantos artigos no Top final? (1–50)</label>
-        <input type="number" name="target_articles" value="{{ p.target_articles }}" min="1" max="50"
+        <label class="block text-xs opacity-90">Quantos artigos no Top final? (1–30)</label>
+        <input type="number" name="target_articles" value="{{ p.target_articles }}" min="1" max="30"
                class="w-full rounded-md border-0 text-slate-900 text-sm focus:ring-2 focus:ring-white">
-        <p class="text-[11px] opacity-90 leading-snug">Teto de 50 para preservar a triagem minuciosa em duas passadas — qualidade acima de quantidade.</p>
+        <p class="text-[11px] opacity-90 leading-snug">Teto de 30 para preservar a triagem minuciosa em duas passadas — qualidade acima de quantidade.</p>
         <div class="flex gap-2">
           <button type="submit" class="flex-1 rounded-md bg-white text-brand-700 text-sm font-medium py-1.5 hover:bg-brand-50">Salvar</button>
           <button type="button" @click="editing = false" class="rounded-md bg-white/20 text-white text-sm py-1.5 px-3 hover:bg-white/30">Cancelar</button>
@@ -653,8 +764,7 @@
         },
       };
     </script>
-    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5"
-         x-data="window.__resumoInitial_{{ p.id }}">
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
       <h3 class="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
         Resumo
         <span x-show="status !== 'done' && status !== 'failed'"
@@ -685,20 +795,6 @@
         </div>
       </dl>
     </div>
-
-    {% if m.by_source %}
-    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
-      <h3 class="text-sm font-semibold text-slate-900 mb-3">Por fonte</h3>
-      <div class="space-y-2">
-        {% for src in m.by_source %}
-        <div class="flex items-center justify-between text-sm">
-          {{ source_badge(src.source) }}
-          <span class="tabular-nums font-medium">{{ src.n }}</span>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
 
     {% if m.top40_avg %}
     <div class="bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl shadow-card p-5 text-white">
