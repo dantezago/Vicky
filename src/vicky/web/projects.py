@@ -40,7 +40,7 @@ def _row_to_project(r: sqlite3.Row) -> Project:
     maturity = r["topic_maturity"] if "topic_maturity" in keys else None
     return Project(
         id=r["id"], workspace_id=r["workspace_id"], topic=r["topic"],
-        objective=r["objective"], years_window=r["years_window"] or 5,
+        objective=r["objective"], years_window=r["years_window"] or 10,
         target_articles=r["target_articles"] if "target_articles" in keys and r["target_articles"] else 20,
         review_type=(r["review_type"] if "review_type" in keys and r["review_type"] else "systematic_review"),
         rigidity_mode=rigidity,
@@ -55,13 +55,16 @@ def _row_to_project(r: sqlite3.Row) -> Project:
 
 
 def create(*, workspace_id: int, topic: str, objective: str | None = None,
-           years_window: int = 5, target_articles: int = 20,
+           years_window: int = 10, target_articles: int = 20,
            review_type: str = "systematic_review",
            rigidity_mode: str = "padrao",
            sources: list[str] | None = None, created_by: int | None = None) -> Project:
     sources = sources or ["pubmed", "scielo", "scholar"]
     # Sanity: target_articles entre 1 e 50 (teto para preservar triagem minuciosa)
     target_articles = max(1, min(30, int(target_articles)))
+    # Sanity: years_window restrito ao conjunto suportado pela UI
+    if int(years_window) not in (3, 5, 7, 10, 20):
+        years_window = 10
     if review_type not in ("systematic_review", "narrative_review"):
         review_type = "systematic_review"
     if rigidity_mode not in ("padrao", "elite"):

@@ -97,21 +97,40 @@
     </div>
     <script>
     (function(){
-      const ref = document.referrer;
-      if (!ref) return;
-      let u; try { u = new URL(ref); } catch(e) { return; }
-      if (u.origin !== location.origin) return;
-      const path = location.pathname.replace(/\/$/, '') || '/';
-      const refPath = u.pathname.replace(/\/$/, '') || '/';
-      // Não mostrar em telas-raiz
-      const roots = ['/', '/dashboard', '/login', '/signup'];
+      // Hierarquia lógica de "Voltar": sempre sobe um nível na árvore da app,
+      // independente de qual página o usuário visitou antes. Isso evita o
+      // loop /projetos/{id} ↔ /projetos/{id}/registros que aparecia quando
+      // a navegação era baseada em document.referrer.
+      const path = location.pathname.replace(/\/+$/, '') || '/';
+
+      // Telas-raiz: nada acima delas, esconde o botão
+      const roots = ['/', '/dashboard', '/login', '/signup', '/projetos',
+                     '/usuarios', '/workspace', '/configuracoes', '/api-uso'];
       if (roots.includes(path)) return;
-      // Não usar referrer auth como destino
-      if (['/login','/signup'].includes(refPath)) return;
-      if (u.href === location.href) return;
+
+      let parent = null;
+      let m;
+
+      if ((m = path.match(/^\/projetos\/(\d+)\/registros\/\d+$/))) {
+        // detalhe do registro → lista de registros (preserva ?back= se existir)
+        const qp = new URLSearchParams(location.search);
+        parent = qp.get('back') || ('/projetos/' + m[1] + '/registros');
+      } else if ((m = path.match(/^\/projetos\/(\d+)\/registros$/))) {
+        parent = '/projetos/' + m[1];
+      } else if ((m = path.match(/^\/projetos\/(\d+)$/))) {
+        parent = '/projetos';
+      } else if (path === '/projetos/novo') {
+        parent = '/projetos';
+      } else if (path.startsWith('/usuarios/')) {
+        parent = '/usuarios';
+      } else if (path.startsWith('/api-uso/')) {
+        parent = '/api-uso';
+      }
+
+      if (!parent) return;
       const btn = document.getElementById('vk-smart-back');
       if (!btn) return;
-      btn.href = ref;
+      btn.href = parent;
       document.getElementById('vk-smart-back-wrap').classList.remove('hidden');
     })();
     </script>

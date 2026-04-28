@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS projects (
     workspace_id     BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     topic            TEXT NOT NULL,
     objective        TEXT,
-    years_window     INTEGER DEFAULT 5,
+    years_window     INTEGER DEFAULT 10,
     target_articles  INTEGER DEFAULT 40,
     review_type      TEXT NOT NULL DEFAULT 'systematic_review',
     rigidity_mode    TEXT NOT NULL DEFAULT 'padrao',  -- padrao | elite (só sistemática)

@@ -199,39 +199,39 @@
 
 <!-- Filtros -->
 <form method="get" class="bg-white rounded-xl border border-slate-200/70 shadow-card p-4 mb-4 flex flex-wrap gap-3 items-end">
-  <div>
+  <div class="w-full sm:w-auto">
     <label class="block text-[11px] text-slate-500 mb-1">Etapa</label>
-    <select name="step" class="text-sm border border-slate-300 rounded-md px-2 py-1.5">
+    <select name="step" class="w-full sm:w-auto text-sm border border-slate-300 rounded-md px-2 py-1.5">
       <option value="">Todas</option>
       {% for s in options.steps %}<option value="{{ s }}" {% if filters.step == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
     </select>
   </div>
-  <div>
+  <div class="w-full sm:w-auto">
     <label class="block text-[11px] text-slate-500 mb-1">Modelo</label>
-    <select name="model" class="text-sm border border-slate-300 rounded-md px-2 py-1.5">
+    <select name="model" class="w-full sm:w-auto text-sm border border-slate-300 rounded-md px-2 py-1.5">
       <option value="">Todos</option>
       {% for m in options.models %}<option value="{{ m }}" {% if filters.model == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
     </select>
   </div>
-  <div>
+  <div class="w-full sm:w-auto">
     <label class="block text-[11px] text-slate-500 mb-1">Usuário</label>
-    <select name="user_id" class="text-sm border border-slate-300 rounded-md px-2 py-1.5">
+    <select name="user_id" class="w-full sm:w-auto text-sm border border-slate-300 rounded-md px-2 py-1.5">
       <option value="">Todos</option>
       {% for u in options.users %}<option value="{{ u.user_id }}" {% if filters.user_id == u.user_id|string %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
     </select>
   </div>
-  <div>
+  <div class="w-full sm:w-auto">
     <label class="block text-[11px] text-slate-500 mb-1">Projeto</label>
-    <select name="project_id" class="text-sm border border-slate-300 rounded-md px-2 py-1.5 max-w-[280px]">
+    <select name="project_id" class="w-full sm:max-w-[280px] text-sm border border-slate-300 rounded-md px-2 py-1.5">
       <option value="">Todos</option>
       {% for p in options.projects %}<option value="{{ p.project_id }}" {% if filters.project_id == p.project_id|string %}selected{% endif %}>{{ p.topic[:60] }}</option>{% endfor %}
     </select>
   </div>
-  <div>
+  <div class="w-full sm:w-auto">
     <label class="block text-[11px] text-slate-500 mb-1">Desde (YYYY-MM-DD)</label>
-    <input type="date" name="since" value="{{ filters.since }}" class="text-sm border border-slate-300 rounded-md px-2 py-1.5">
+    <input type="date" name="since" value="{{ filters.since }}" class="w-full sm:w-auto text-sm border border-slate-300 rounded-md px-2 py-1.5">
   </div>
-  <button type="submit" class="rounded-md bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3 py-1.5">Filtrar</button>
+  <button type="submit" class="w-full sm:w-auto rounded-md bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3 py-1.5">Filtrar</button>
   <a href="/configuracoes/uso-api" class="text-sm text-slate-500 hover:text-slate-700">Limpar</a>
 </form>
 

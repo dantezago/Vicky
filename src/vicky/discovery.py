@@ -599,7 +599,7 @@ def _normalize_substrings(value) -> list[str]:
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=15), reraise=True)
 def run_discovery(client: OpenAI, model: str, *, topic: str,
-                  objective: str | None = None, years_window: int = 5,
+                  objective: str | None = None, years_window: int = 10,
                   review_type: str = "systematic_review",
                   rigidity_mode: str = "padrao") -> DiscoveryResult:
     """Gera critérios + 6 substrings/source. `rigidity_mode` só aplica quando

@@ -349,11 +349,18 @@ EFFECTIVE_DECISION_SQL = (
 def get_workspace_dashboard(ws_id: int) -> dict[str, Any]:
     """Métricas agregadas do workspace (todos os projetos)."""
     with connect() as conn:
+        # Por projeto: contagem visível ao usuário = artigos com decisão efetiva
+        # include/exclude (mesma regra do project dashboard, para coerência total
+        # entre as telas).
         projects = conn.execute(
-            """SELECT p.id, p.topic, p.status, p.updated_at,
-                      COUNT(DISTINCT a.external_id) AS n_articles
+            f"""SELECT p.id, p.topic, p.status, p.updated_at,
+                      COUNT(CASE WHEN {EFFECTIVE_DECISION_SQL} IN ('include','exclude')
+                                 THEN 1 END) AS n_articles
                FROM projects p
                LEFT JOIN articles a ON a.project_id=p.id AND a.is_duplicate=0
+               LEFT JOIN analyses an ON an.project_id=a.project_id AND an.source=a.source AND an.external_id=a.external_id
+               LEFT JOIN double_checks dc ON dc.project_id=a.project_id AND dc.source=a.source AND dc.external_id=a.external_id
+               LEFT JOIN user_decisions ud ON ud.project_id=a.project_id AND ud.source=a.source AND ud.external_id=a.external_id
                WHERE p.workspace_id=?
                GROUP BY p.id ORDER BY p.updated_at DESC LIMIT 6""",
             (ws_id,),
@@ -362,7 +369,11 @@ def get_workspace_dashboard(ws_id: int) -> dict[str, Any]:
             "SELECT COUNT(*) FROM projects WHERE workspace_id=?", (ws_id,)
         ).fetchone()[0]
         n_articles = conn.execute(
-            "SELECT COUNT(*) FROM articles WHERE workspace_id=? AND is_duplicate=0", (ws_id,)
+            f"""SELECT COUNT(*)
+                FROM articles a {EFFECTIVE_JOIN}
+                WHERE a.workspace_id=? AND a.is_duplicate=0
+                  AND {EFFECTIVE_DECISION_SQL} IN ('include','exclude')""",
+            (ws_id,),
         ).fetchone()[0]
         n_done = conn.execute(
             "SELECT COUNT(*) FROM projects WHERE workspace_id=? AND status='done'", (ws_id,)
@@ -380,7 +391,13 @@ def get_workspace_dashboard(ws_id: int) -> dict[str, Any]:
 
 
 def get_project_dashboard(project_id: int) -> dict[str, Any]:
-    """Métricas de um projeto específico."""
+    """Métricas de um projeto específico.
+
+    Nota de UX: para o usuário final, "total de artigos" = incluídos + excluídos
+    (somente decisões definitivas). Incertos e não analisados não entram na conta
+    visível, embora permaneçam no banco e no processo. Por isso `total_articles`,
+    `analyzed` e `by_source` aqui já são pré-ajustados para refletir essa regra.
+    """
     with connect() as conn:
         articles = conn.execute(
             "SELECT COUNT(*) FROM articles WHERE project_id=? AND is_duplicate=0", (project_id,)
@@ -389,10 +406,14 @@ def get_project_dashboard(project_id: int) -> dict[str, Any]:
             "SELECT COUNT(*) FROM analyses WHERE project_id=?", (project_id,)
         ).fetchone()[0]
 
-        # Counts por source
+        # Counts por source — somente artigos com decisão efetiva include/exclude
+        # (a soma fecha exatamente com included + excluded mostrados ao usuário)
         by_source = conn.execute(
-            """SELECT source, COUNT(*) AS n FROM articles
-               WHERE project_id=? AND is_duplicate=0 GROUP BY source""",
+            f"""SELECT a.source, COUNT(*) AS n
+                FROM articles a {EFFECTIVE_JOIN}
+                WHERE a.project_id=? AND a.is_duplicate=0
+                  AND {EFFECTIVE_DECISION_SQL} IN ('include','exclude')
+                GROUP BY a.source""",
             (project_id,),
         ).fetchall()
 
@@ -433,13 +454,19 @@ def get_project_dashboard(project_id: int) -> dict[str, Any]:
             (project_id,),
         ).fetchone()[0]
 
+    included_count = by_decision.get("include", 0)
+    excluded_count = by_decision.get("exclude", 0)
+    display_total = included_count + excluded_count
+
     return {
-        "total_articles": articles,
-        "analyzed": analyzed,
+        "total_articles": display_total,
+        "analyzed": display_total,
+        "raw_total_articles": articles,
+        "raw_analyzed": analyzed,
         "by_source": [dict(r) for r in by_source],
         "by_decision": by_decision,
-        "included": by_decision.get("include", 0),
-        "excluded": by_decision.get("exclude", 0),
+        "included": included_count,
+        "excluded": excluded_count,
         "uncertain": by_decision.get("uncertain", 0),
         "double_checked": double_checked,
         "disagreements": disagreements,

@@ -270,7 +270,7 @@ def register_routes(app: FastAPI) -> None:
         ws: Annotated[Workspace, Depends(get_current_workspace)],
         topic: Annotated[str, Form()],
         objective: Annotated[str, Form()] = "",
-        years_window: Annotated[int, Form()] = 5,
+        years_window: Annotated[int, Form()] = 10,
         target_articles: Annotated[int, Form()] = 40,
         review_type: Annotated[str, Form()] = "systematic_review",
         rigidity_mode: Annotated[str, Form()] = "padrao",

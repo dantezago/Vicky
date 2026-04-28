@@ -253,22 +253,11 @@
         <!-- Métricas de PROCESSO -->
         <div>
           <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Processo de triagem</div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-            {# Card unificado: usa total_articles (sempre o maior valor) e mantém o título "Analisados pela IA" #}
+          <div class="grid grid-cols-1 gap-3 text-sm">
             <div class="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
               <div class="text-xs text-slate-500">Analisados pela IA</div>
               <div class="text-xl font-bold text-slate-900 tabular-nums mt-0.5">{{ m.total_articles }}</div>
               <div class="text-[10px] text-slate-500 mt-0.5">duas passadas independentes</div>
-            </div>
-            <div class="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
-              <div class="text-xs text-slate-500">Auditados (double-check)</div>
-              <div class="text-xl font-bold text-slate-900 tabular-nums mt-0.5">{{ m.excluded }}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">2ª passada nas exclusões</div>
-            </div>
-            <div class="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
-              <div class="text-xs text-slate-500">Discordâncias resolvidas</div>
-              <div class="text-xl font-bold text-amber-700 tabular-nums mt-0.5">{{ m.disagreements or 0 }}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">flags de revisão</div>
             </div>
           </div>
         </div>
@@ -324,7 +313,9 @@
         {% set top_count = m.included_top|default(0) %}
         {% set reached_target = top_count >= p.target_articles %}
         {% set is_systematic = p.review_type != 'narrative_review' %}
-        {% set hit_max = (not reached_target) and m.analyzed >= m.total_articles - 5 and m.analyzed >= 1500 %}
+        {# hit_max usa contagens cruas do pipeline para escolher a mensagem certa,
+           já que m.total_articles / m.analyzed estão ajustados para UX (incluídos+excluídos). #}
+        {% set hit_max = (not reached_target) and m.raw_analyzed >= m.raw_total_articles - 5 and m.raw_analyzed >= 1500 %}
         {% set is_full_success = reached_target %}
         {% set is_max_reached = (not reached_target) and hit_max %}
         {% set is_source_exhausted = (not reached_target) and (not hit_max) %}
@@ -338,25 +329,38 @@
           {% endif %}
         </div>
         {% elif is_max_reached %}
+        {# Próxima janela sugerida: 3/5/7 → 10 · 10 → 20 · ≥20 → None (não sugere ampliar) #}
+        {% set _yw = p.years_window or 10 %}
+        {% set _next_window = 10 if _yw < 10 else (20 if _yw < 20 else None) %}
         <div class="rounded-lg bg-amber-50 border border-amber-300 px-4 py-3 text-xs text-amber-900 leading-relaxed space-y-1.5">
           <p>⚠️ <strong>Análise completa.</strong> A Vicky varreu o universo disponível e chegou no <strong>Top {{ top_count }}</strong>. A sua meta era {{ p.target_articles }}.</p>
           <p>Isso significa que o tema é exigente: poucos estudos atendem simultaneamente aos critérios PICO e ao patamar de qualidade metodológica. <strong>É um resultado válido e auditável.</strong></p>
-          {% if is_systematic %}
+          {% if is_systematic and _next_window %}
           <p class="bg-amber-100/60 border border-amber-300/70 rounded-md px-3 py-2 mt-2">
-            💡 <strong>Sugestão:</strong> rode o mesmo tema como <strong>revisão narrativa / artigo de resumo</strong>. Os critérios são menos rigorosos e tendem a incluir mais artigos. Crie um novo projeto com o mesmo tema e selecione "Artigo de resumo" no tipo de revisão.
+            💡 <strong>Sugestão:</strong> rode o mesmo tema com uma <strong>janela temporal mais ampla</strong>. Você usou <strong>{{ _yw }} ano{{ 's' if _yw != 1 else '' }}</strong> — experimente <strong>os últimos {{ _next_window }} anos</strong>. Mais anos significam mais estudos elegíveis sem afrouxar o rigor metodológico. Crie um novo projeto com o mesmo tema e ajuste a janela temporal no formulário.
+          </p>
+          {% elif is_systematic %}
+          <p class="bg-amber-100/60 border border-amber-300/70 rounded-md px-3 py-2 mt-2">
+            💡 Você já rodou com a janela máxima de <strong>{{ _yw }} anos</strong>. Não dá pra ampliar mais sem perder relevância clínica. Considere o <strong>Top {{ top_count }}</strong> como resultado final — a Vicky aplicou exatamente os critérios pedidos e o tema simplesmente tem poucos estudos que sobrevivem ao crivo metodológico.
           </p>
           {% else %}
           <p>Para chegar perto da sua meta, considere afrouxar os critérios ou aceitar o Top {{ top_count }} como resultado final.</p>
           {% endif %}
         </div>
         {% else %} {# is_source_exhausted #}
+        {% set _yw = p.years_window or 10 %}
+        {% set _next_window = 10 if _yw < 10 else (20 if _yw < 20 else None) %}
         <div class="rounded-lg bg-blue-50 border border-blue-300 px-4 py-3 text-xs text-blue-900 leading-relaxed space-y-1.5">
           <p>ℹ️ <strong>Análise completa: literatura limitada para esse tema.</strong></p>
           <p>As bases científicas (PubMed, SciELO e Google Acadêmico) retornaram apenas <strong>{{ m.total_articles }} artigos</strong> sobre esse tema, e <strong>{{ top_count }}</strong> atendem aos critérios. A sua meta era {{ p.target_articles }}.</p>
           <p><strong>Isso não é falha da ferramenta.</strong> O tema é muito específico, e a literatura disponível é limitada nas bases consultadas. A Vicky tentou várias estratégias de busca (rotações de termos, expansões da consulta, ampliação da janela temporal) antes de aceitar o esgotamento.</p>
-          {% if is_systematic %}
+          {% if is_systematic and _next_window %}
           <p class="bg-blue-100/60 border border-blue-300/70 rounded-md px-3 py-2 mt-2">
-            💡 <strong>Sugestão:</strong> rode o mesmo tema como <strong>revisão narrativa / artigo de resumo</strong>. Os critérios são menos rigorosos e mais artigos costumam ser incluídos. Crie um novo projeto com o mesmo tema e selecione "Artigo de resumo".
+            💡 <strong>Sugestão:</strong> rode o mesmo tema com uma <strong>janela temporal mais ampla</strong>. Você usou <strong>{{ _yw }} ano{{ 's' if _yw != 1 else '' }}</strong> — experimente <strong>os últimos {{ _next_window }} anos</strong> para alcançar estudos seminais e ampliar o universo elegível, mantendo o rigor da revisão sistemática. Crie um novo projeto com o mesmo tema e ajuste a janela temporal no formulário.
+          </p>
+          {% elif is_systematic %}
+          <p class="bg-blue-100/60 border border-blue-300/70 rounded-md px-3 py-2 mt-2">
+            💡 Você já rodou com a janela máxima de <strong>{{ _yw }} anos</strong>. Ampliar mais não traria ganho real — a literatura disponível para esse tema é mesmo limitada. A Vicky atendeu exatamente aos critérios pedidos; o <strong>Top {{ top_count }}</strong> é o resultado mais fiel possível.
           </p>
           {% else %}
           <p>Para encontrar mais artigos, considere reformular o tema com termos mais amplos.</p>

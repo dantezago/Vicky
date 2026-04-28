@@ -5,6 +5,7 @@
    ======================================== */
 
 :root {
+  color-scheme: light;
   --vk-brand-50:  #fdf2f8;
   --vk-brand-100: #fce7f3;
   --vk-brand-200: #fbcfe8;
@@ -33,6 +34,15 @@ body { font-feature-settings: "ss01", "cv11"; }
 @media (max-width: 768px) {
   html, body { max-width: 100vw; overflow-x: clip; }
   table { table-layout: auto; }
+
+  /* iOS faz auto-zoom em <input>/<select>/<textarea> com font-size < 16px.
+     Forçar 16px mantém a tipografia mas evita o zoom-in indesejado ao focar. */
+  select, input, textarea { font-size: 16px !important; }
+
+  /* Garante que o popup nativo do <select> respeite tema claro mesmo
+     quando o sistema operacional está em dark mode. */
+  select { color-scheme: light; background-color: #fff; color: #0f172a; }
+  select option { background-color: #fff; color: #0f172a; }
 }
 
 /* ─── Tipografia ─────────────────────────────────────── */

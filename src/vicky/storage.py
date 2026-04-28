@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS projects (
     workspace_id     INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     topic            TEXT NOT NULL,
     objective        TEXT,
-    years_window     INTEGER DEFAULT 5,
+    years_window     INTEGER DEFAULT 10,
     target_articles  INTEGER DEFAULT 40,    -- Meta de artigos no Top N final
     review_type      TEXT NOT NULL DEFAULT 'systematic_review',  -- systematic_review | narrative_review
     rigidity_mode    TEXT NOT NULL DEFAULT 'padrao',  -- padrao (funil 4 estágios) | elite (qualidade obrigatória)
@@ -305,7 +305,7 @@ def _migrate_v2_to_v3_projects(conn: sqlite3.Connection) -> bool:
         CREATE TABLE IF NOT EXISTS projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-            topic TEXT NOT NULL, objective TEXT, years_window INTEGER DEFAULT 5,
+            topic TEXT NOT NULL, objective TEXT, years_window INTEGER DEFAULT 10,
             criteria_md TEXT, search_strings TEXT,
             sources TEXT DEFAULT 'pubmed,scielo,scholar',
             status TEXT NOT NULL DEFAULT 'draft', error TEXT,
