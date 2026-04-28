@@ -119,7 +119,19 @@ users (id, email, password_hash, name, role[admin|operacional|visualizador], sta
 cp ~/.local/share/vicky/vicky.db{,.backup-$(date +%s)}
 ```
 
-**Postgres:** schema é estático em [schema_pg.sql](src/vicky/schema_pg.sql) — não tem migration runtime. Mudanças vão via novo arquivo de migration aplicado fora do app (psql ou ferramenta dedicada).
+**Postgres:** schema é estático em [schema_pg.sql](src/vicky/schema_pg.sql) — não tem migration runtime, mas o `make deploy` aplica `init_pg_schema()` em prod automaticamente após o rebuild (idempotente). Ver "Convenção de mudanças de schema" logo abaixo.
+
+### Convenção de mudanças de schema (SQLite ↔ Postgres)
+
+Toda mudança **aditiva** (ADD COLUMN/TABLE/INDEX) requer 3 coisas em PR único:
+
+1. **Migration SQLite** em [storage.py](src/vicky/storage.py): nova `_migrate_vN_to_vN+1_*` registrada em `_run_migrations()`.
+2. **Coluna no `CREATE TABLE`** correspondente em [schema_pg.sql](src/vicky/schema_pg.sql).
+3. **`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`** logo abaixo do `CREATE TABLE` em `schema_pg.sql`. Sem isso, DBs já criados em prod não recebem a coluna.
+
+Antes de commitar: `make check-schema` confere que toda migration SQLite tem o ALTER IF NOT EXISTS correspondente. `make deploy` roda `init_pg_schema()` em prod, então mudanças aditivas merge'd na main refletem em produção no próximo deploy automaticamente.
+
+**Mudanças destrutivas/estruturais** (DROP/RENAME COLUMN, mudar tipo, adicionar NOT NULL exigindo backfill, mudar PK/UNIQUE): não cobertas por `IF NOT EXISTS`. Caso a caso: SQL manual aplicado via `make psql` (local) e `make prod-pg-init` ou psql direto em prod com autorização explícita. Documentar a mudança no commit.
 
 Versões SQLite já aplicadas:
 - v1→v2: adicionou `workspace_id` (multitenancy)
@@ -130,6 +142,8 @@ Versões SQLite já aplicadas:
 - v6→v7: adicionou `review_type` em `projects`
 - v7→v8: adicionou `cost_source`/`generation_id` em `llm_usage` (custo real OpenRouter)
 - v8→v9: adicionou `openrouter_api_key` em `workspaces`
+- v9→v10: adicionou `search_string_id` em `articles` (estratégia multi-string)
+- v10→v11: adicionou `rigidity_mode` + `topic_maturity` em `projects`
 
 ---
 
@@ -488,7 +502,7 @@ Pra economizar mais: `OPENROUTER_MODEL=google/gemini-2.0-flash-001` no `.env` (~
 | Sessão cookie sem CSRF token | Aceitável (SameSite=Lax) | Adequado pra uso interno |
 | Pipeline morre se uvicorn cair durante execução | Conhecido | Pra produção: Celery/RQ + worker separado |
 | Postgres sem connection pool — 1 socket por request | Conhecido | Adicionar `psycopg_pool.ConnectionPool` se aparecer latência |
-| Postgres não tem migration runtime — schema é estático | Aceitável | Mudanças vão via `schema_pg.sql` ou ferramenta dedicada |
+| Postgres não tem migration runtime — schema é estático | Aceitável | Aditivos cobertos por `ALTER IF NOT EXISTS` aplicados pelo `make deploy`. Destrutivos: caso a caso |
 | bcrypt warning não-fatal sobre `__about__` | Cosmético | Incompatibilidade passlib + bcrypt 5.x. Pinei bcrypt<5 |
 | IDE pyright reclama de imports do venv | Falso-positivo | Imports funcionam em runtime; é só o IDE não vendo `.venv/` |
 

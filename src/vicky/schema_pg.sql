@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS users (
     credits       INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')
 );
+-- Idempotência pra DBs pré-v6
+ALTER TABLE users ADD COLUMN IF NOT EXISTS credits INTEGER NOT NULL DEFAULT 0;
 
 -- ─── workspaces ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS workspaces (
@@ -42,6 +44,8 @@ CREATE TABLE IF NOT EXISTS workspaces (
     openrouter_api_key  TEXT,
     created_at          TEXT DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')
 );
+-- Idempotência pra DBs pré-v9
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS openrouter_api_key TEXT;
 CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_user_id);
 
 -- ─── projects ──────────────────────────────────────────────────────────────
@@ -64,7 +68,9 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at       TEXT DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'),
     updated_at       TEXT DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')
 );
--- Idempotência pra DBs pré-v11
+-- Idempotência pra DBs criados em versões anteriores do schema
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS target_articles INTEGER DEFAULT 40;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_type TEXT NOT NULL DEFAULT 'systematic_review';
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS rigidity_mode TEXT NOT NULL DEFAULT 'padrao';
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS topic_maturity TEXT;
 CREATE INDEX IF NOT EXISTS idx_projects_workspace ON projects(workspace_id);
@@ -136,6 +142,8 @@ CREATE TABLE IF NOT EXISTS analyses (
     FOREIGN KEY (project_id, source, external_id)
         REFERENCES articles(project_id, source, external_id) ON DELETE CASCADE
 );
+-- Idempotência pra DBs pré-v5
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS in_top_n INTEGER DEFAULT 1;
 
 -- ─── double_checks ─────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS double_checks (
@@ -203,6 +211,9 @@ CREATE TABLE IF NOT EXISTS llm_usage (
     cost_source         TEXT NOT NULL DEFAULT 'table',
     created_at          TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')
 );
+-- Idempotência pra DBs pré-v8
+ALTER TABLE llm_usage ADD COLUMN IF NOT EXISTS generation_id TEXT;
+ALTER TABLE llm_usage ADD COLUMN IF NOT EXISTS cost_source TEXT NOT NULL DEFAULT 'table';
 CREATE INDEX IF NOT EXISTS idx_llm_usage_workspace ON llm_usage(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_usage_project   ON llm_usage(project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_usage_user      ON llm_usage(user_id, created_at DESC);

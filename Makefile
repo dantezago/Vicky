@@ -32,7 +32,7 @@ export DATABASE_URL
 
 .PHONY: help pg-up pg-down pg-restart pg-logs pg-shell pg-status pg-wait \
         pg-reset pg-init pg-drop seed seed-truncate pg-fresh psql \
-        deploy prod-logs prod-status prod-restart
+        check-schema deploy prod-pg-init prod-logs prod-status prod-restart
 
 ## help: Lista os comandos disponíveis
 help:
@@ -114,7 +114,11 @@ seed-truncate:
 pg-fresh: pg-reset pg-init seed
 	@echo "✓ Postgres limpo, schema aplicado e dados carregados de $(SQLITE)."
 
-## deploy: git pull + rebuild + restart na VPS de produção
+## check-schema: Verifica que toda migration SQLite tem ALTER IF NOT EXISTS no schema_pg.sql
+check-schema:
+	@$(PYTHON) scripts/check_schema_drift.py
+
+## deploy: git pull + rebuild + restart + schema sync na VPS de produção
 deploy:
 	@echo "→ Conectando em $(VPS_USER)@$(VPS_HOST):$(VPS_PATH)..."
 	@ssh -t $(VPS_USER)@$(VPS_HOST) ' \
@@ -123,8 +127,16 @@ deploy:
 		echo "→ git pull..."; git pull; \
 		echo "→ docker compose up -d --build..."; \
 		$(PROD_COMPOSE) up -d --build; \
+		echo "→ Aplicando schema (idempotente)..."; \
+		$(PROD_COMPOSE) exec -T vicky-web python -c "from vicky.db import init_pg_schema; init_pg_schema()"; \
 		echo "→ Status:"; $(PROD_COMPOSE) ps; \
 		echo "✓ Deploy concluído."'
+
+## prod-pg-init: Aplica schema_pg.sql em produção (idempotente, fora do deploy)
+prod-pg-init:
+	@echo "→ Aplicando schema em $(VPS_HOST)..."
+	@ssh -t $(VPS_USER)@$(VPS_HOST) 'cd $(VPS_PATH) && $(PROD_COMPOSE) exec -T vicky-web python -c "from vicky.db import init_pg_schema; init_pg_schema()"'
+	@echo "✓ schema aplicado em produção"
 
 ## prod-logs: Tail dos logs do vicky-web em produção (Ctrl+C pra sair)
 prod-logs:
