@@ -1,0 +1,184 @@
+{% extends "app_layout.html" %}
+{% block title %}Relatórios · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5">Administração</div>{% endblock %}
+{% block page_title %}Relatórios{% endblock %}
+{% block page_subtitle %}<p class="text-xs text-slate-500 mt-1 vk-mono uppercase tracking-[0.12em]">Visão geral de todos os projetos · taxa de meta atingida</p>{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+  {# Cards totais #}
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+      <div class="text-xs uppercase text-slate-500 tracking-[0.12em] vk-mono">Projetos</div>
+      <div class="mt-2 text-3xl font-semibold tabular-nums text-slate-900">{{ r.totals.n_projects }}</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+      <div class="text-xs uppercase text-slate-500 tracking-[0.12em] vk-mono">Concluídos</div>
+      <div class="mt-2 text-3xl font-semibold tabular-nums text-emerald-700">{{ r.totals.n_done }}</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+      <div class="text-xs uppercase text-slate-500 tracking-[0.12em] vk-mono">Atingiram meta</div>
+      <div class="mt-2 text-3xl font-semibold tabular-nums text-violet-700">{{ r.totals.n_hit }}</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200/70 shadow-card p-5">
+      <div class="text-xs uppercase text-slate-500 tracking-[0.12em] vk-mono">Taxa de sucesso</div>
+      <div class="mt-2 text-3xl font-semibold tabular-nums text-brand-700">{{ r.totals.hit_rate }}%</div>
+      <div class="text-xs text-slate-500 mt-1">de projetos concluídos que atingiram o Top N alvo</div>
+    </div>
+  </div>
+
+  {# Por tipo de revisão #}
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100">
+      <h2 class="text-base font-semibold text-slate-900">Por tipo de revisão</h2>
+      <p class="text-xs text-slate-500 mt-0.5">Quais tipos atingem mais a meta de Top N</p>
+    </div>
+    {% if r.by_review_type %}
+    <div class="overflow-x-auto">
+    <table class="w-full text-sm min-w-[560px]">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
+        <tr>
+          <th class="px-4 py-3 text-left">Tipo</th>
+          <th class="px-4 py-3 text-right w-28">Projetos</th>
+          <th class="px-4 py-3 text-right w-28">Concluídos</th>
+          <th class="px-4 py-3 text-right w-28">Atingiram</th>
+          <th class="px-4 py-3 text-right w-32">Taxa</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for bt in r.by_review_type %}
+        <tr>
+          <td class="px-4 py-3 font-medium text-slate-900">{{ bt.review_type }}</td>
+          <td class="px-4 py-3 text-right tabular-nums">{{ bt.n_projects }}</td>
+          <td class="px-4 py-3 text-right tabular-nums">{{ bt.n_done }}</td>
+          <td class="px-4 py-3 text-right tabular-nums text-violet-700 font-semibold">{{ bt.n_hit }}</td>
+          <td class="px-4 py-3 text-right tabular-nums font-semibold {% if bt.hit_rate >= 80 %}text-emerald-700{% elif bt.hit_rate >= 50 %}text-amber-700{% else %}text-rose-700{% endif %}">{{ bt.hit_rate }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-sm text-slate-500">Sem projetos ainda.</div>
+    {% endif %}
+  </div>
+
+  {# Por usuário #}
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100">
+      <h2 class="text-base font-semibold text-slate-900">Por usuário</h2>
+      <p class="text-xs text-slate-500 mt-0.5">Volume de projetos e taxa de sucesso de cada pesquisador</p>
+    </div>
+    {% if r.by_user %}
+    <div class="overflow-x-auto">
+    <table class="w-full text-sm min-w-[760px]">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
+        <tr>
+          <th class="px-4 py-3 text-left">Usuário</th>
+          <th class="px-4 py-3 text-right w-28">Projetos</th>
+          <th class="px-4 py-3 text-right w-28">Concluídos</th>
+          <th class="px-4 py-3 text-right w-28">Atingiram</th>
+          <th class="px-4 py-3 text-right w-28">Taxa</th>
+          <th class="px-4 py-3 text-right w-40"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for bu in r.by_user %}
+        <tr>
+          <td class="px-4 py-3">
+            <div class="font-medium text-slate-900">{{ bu.user_name }}</div>
+            <div class="text-xs text-slate-500">{{ bu.user_email }}</div>
+          </td>
+          <td class="px-4 py-3 text-right tabular-nums">{{ bu.n_projects }}</td>
+          <td class="px-4 py-3 text-right tabular-nums">{{ bu.n_done }}</td>
+          <td class="px-4 py-3 text-right tabular-nums text-violet-700 font-semibold">{{ bu.n_hit }}</td>
+          <td class="px-4 py-3 text-right tabular-nums font-semibold {% if bu.hit_rate >= 80 %}text-emerald-700{% elif bu.hit_rate >= 50 %}text-amber-700{% else %}text-rose-700{% endif %}">{{ bu.hit_rate }}%</td>
+          <td class="px-4 py-3 text-right">
+            <form method="post" action="/admin/view-as/{{ bu.user_id }}" class="inline">
+              <input type="hidden" name="next" value="/dashboard">
+              <button type="submit" class="text-xs text-brand-600 hover:text-brand-800 underline-offset-2 hover:underline">Ver workspace →</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-sm text-slate-500">Sem usuários com projetos ainda.</div>
+    {% endif %}
+  </div>
+
+  {# Tabela completa de projetos #}
+  <div class="bg-white rounded-xl border border-slate-200/70 shadow-card overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-semibold text-slate-900">Todos os projetos</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Cada projeto com seu Top N atual vs. meta</p>
+      </div>
+    </div>
+    {% if r.projects %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
+          <tr>
+            <th class="px-4 py-3 text-left">Usuário</th>
+            <th class="px-4 py-3 text-left">Projeto</th>
+            <th class="px-4 py-3 text-left w-32">Tipo</th>
+            <th class="px-4 py-3 text-left w-24">Status</th>
+            <th class="px-4 py-3 text-right w-24">Top N</th>
+            <th class="px-4 py-3 text-right w-24">Meta</th>
+            <th class="px-4 py-3 text-right w-28">Cobertura</th>
+            <th class="px-4 py-3 text-center w-24">Atingiu?</th>
+            <th class="px-4 py-3 text-right w-40"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for p in r.projects %}
+          <tr>
+            <td class="px-4 py-3">
+              <div class="text-sm text-slate-900">{{ p.user_name }}</div>
+              <div class="text-xs text-slate-500">{{ p.user_email }}</div>
+            </td>
+            <td class="px-4 py-3">
+              <div class="font-medium text-slate-900 line-clamp-2">{{ p.topic }}</div>
+              <div class="text-xs text-slate-500 mt-0.5">#{{ p.project_id }} · {{ p.total_articles }} artigos</div>
+            </td>
+            <td class="px-4 py-3 text-xs text-slate-600">{{ p.review_type }}</td>
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium
+                  {% if p.status == 'done' %}bg-emerald-50 text-emerald-700 border border-emerald-200
+                  {% elif p.status == 'failed' %}bg-rose-50 text-rose-700 border border-rose-200
+                  {% else %}bg-slate-50 text-slate-700 border border-slate-200{% endif %}">{{ p.status }}</span>
+            </td>
+            <td class="px-4 py-3 text-right tabular-nums">{{ p.top_n_count }}</td>
+            <td class="px-4 py-3 text-right tabular-nums text-slate-500">{{ p.target_articles }}</td>
+            <td class="px-4 py-3 text-right tabular-nums">{{ p.coverage_pct }}%</td>
+            <td class="px-4 py-3 text-center">
+              {% if p.hit_target %}
+                <span class="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs font-semibold">✓ Sim</span>
+              {% elif p.status == 'done' %}
+                <span class="inline-flex items-center rounded-full bg-rose-50 text-rose-700 px-2 py-0.5 text-xs font-semibold">✗ Não</span>
+              {% else %}
+                <span class="text-xs text-slate-400">—</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3 text-right">
+              <form method="post" action="/admin/view-as/{{ p.user_id }}" class="inline">
+                <input type="hidden" name="next" value="/projetos/{{ p.project_id }}">
+                <button type="submit" class="text-xs text-brand-600 hover:text-brand-800 underline-offset-2 hover:underline">Abrir →</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-sm text-slate-500">Nenhum projeto cadastrado.</div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

@@ -124,7 +124,7 @@
       <div class="flex-1 min-w-0">
         <div class="text-sm font-semibold text-slate-900 truncate group-hover:text-brand-700 transition">{{ p.topic }}</div>
         <div class="vk-mono text-[10.5px] uppercase tracking-[0.12em] text-slate-400 mt-0.5 tabular-nums">
-          {{ p.n_articles }} artigos · {{ p.updated_at[:10] }}
+          {{ p.n_articles }} artigos · {{ p.updated_at|brdate }}
         </div>
       </div>
       <svg class="h-4 w-4 text-slate-300 group-hover:text-brand-500 group-hover:translate-x-0.5 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>

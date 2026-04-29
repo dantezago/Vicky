@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS projects (
     review_type      TEXT NOT NULL DEFAULT 'systematic_review',
     rigidity_mode    TEXT NOT NULL DEFAULT 'padrao',  -- padrao | elite (só sistemática)
     topic_maturity   TEXT,                            -- high | moderate | emerging
+    pending_full_pipeline INTEGER NOT NULL DEFAULT 0, -- 1 = pipeline completo agendado durante preview
     criteria_md      TEXT,
     search_strings   TEXT,
     sources          TEXT DEFAULT 'pubmed,scielo,scholar',
@@ -73,6 +74,7 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS target_articles INTEGER DEFAULT 40
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_type TEXT NOT NULL DEFAULT 'systematic_review';
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS rigidity_mode TEXT NOT NULL DEFAULT 'padrao';
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS topic_maturity TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS pending_full_pipeline INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_projects_workspace ON projects(workspace_id);
 
 -- ─── articles ──────────────────────────────────────────────────────────────
@@ -219,5 +221,31 @@ CREATE INDEX IF NOT EXISTS idx_llm_usage_project   ON llm_usage(project_id, crea
 CREATE INDEX IF NOT EXISTS idx_llm_usage_user      ON llm_usage(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_usage_step      ON llm_usage(pipeline_step);
 CREATE INDEX IF NOT EXISTS idx_llm_usage_genid     ON llm_usage(generation_id);
+
+-- ─── user_article_favorites ────────────────────────────────────────────────
+-- Artigos marcados como favoritos pelo usuário dentro de um projeto.
+CREATE TABLE IF NOT EXISTS user_article_favorites (
+    user_id      BIGINT NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+    project_id   BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    source       TEXT   NOT NULL,
+    external_id  TEXT   NOT NULL,
+    note         TEXT,
+    created_at   TEXT   DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'),
+    PRIMARY KEY (user_id, project_id, source, external_id),
+    FOREIGN KEY (project_id, source, external_id)
+        REFERENCES articles(project_id, source, external_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_user    ON user_article_favorites(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_project ON user_article_favorites(user_id, project_id);
+
+-- ─── user_project_favorites ───────────────────────────────────────────────
+-- Projetos marcados como favoritos pelo usuário dentro do seu workspace.
+CREATE TABLE IF NOT EXISTS user_project_favorites (
+    user_id     BIGINT NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+    project_id  BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    created_at  TEXT   DEFAULT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'),
+    PRIMARY KEY (user_id, project_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_project_favs_user ON user_project_favorites(user_id, created_at DESC);
 
 COMMIT;

@@ -32,12 +32,17 @@ class Project:
     created_by: int | None
     created_at: str
     updated_at: str
+    # Setado pelo botão "Iniciar pipeline" quando o usuário pede pipeline
+    # completo durante o preview (status='discovering'). Ao terminar discovery,
+    # `run_discovery_only` consome a flag e dispara `run_full_pipeline`.
+    pending_full_pipeline: int = 0
 
 
 def _row_to_project(r: sqlite3.Row) -> Project:
     keys = r.keys()
     rigidity = r["rigidity_mode"] if "rigidity_mode" in keys and r["rigidity_mode"] else "padrao"
     maturity = r["topic_maturity"] if "topic_maturity" in keys else None
+    pending = r["pending_full_pipeline"] if "pending_full_pipeline" in keys and r["pending_full_pipeline"] else 0
     return Project(
         id=r["id"], workspace_id=r["workspace_id"], topic=r["topic"],
         objective=r["objective"], years_window=r["years_window"] or 10,
@@ -51,6 +56,7 @@ def _row_to_project(r: sqlite3.Row) -> Project:
         status=r["status"], error=r["error"],
         created_by=r["created_by"], created_at=r["created_at"],
         updated_at=r["updated_at"],
+        pending_full_pipeline=int(pending or 0),
     )
 
 

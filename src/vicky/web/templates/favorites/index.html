@@ -1,0 +1,60 @@
+{% extends "app_layout.html" %}
+{% from "components/project_status.html" import status_badge %}
+{% from "components/empty_state.html" import empty_state %}
+{% block title %}Favoritos · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5">Seus artigos favoritos</div>{% endblock %}
+{% block page_title %}Favoritos{% endblock %}
+{% block page_subtitle %}<p class="text-xs text-slate-500 mt-1 vk-mono uppercase tracking-[0.12em]">{{ projects|length }} {% if projects|length == 1 %}projeto{% else %}projetos{% endif %} com favoritos</p>{% endblock %}
+
+{% block content %}
+
+{% if projects %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+  {% for p in projects %}
+  <a href="{% if p.n_favorites > 0 %}/favoritos/{{ p.id }}{% else %}/projetos/{{ p.id }}{% endif %}"
+     class="vk-card lift block p-5 group vk-reveal" data-delay="{{ ((loop.index0 % 4) + 1) }}">
+    <div class="flex items-start justify-between mb-3 gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
+        {{ status_badge(p.status) }}
+        {% if p.review_type == 'narrative_review' %}
+        <span class="vk-pill vk-pill-violet vk-pill-mono uppercase tracking-wider">📝 Narrativa</span>
+        {% else %}
+        <span class="vk-pill vk-pill-slate vk-pill-mono uppercase tracking-wider">📐 Sistemática</span>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        {% if p.is_project_favorite %}
+        <span class="inline-flex items-center justify-center h-6 w-6 rounded-full text-amber-500" title="Projeto favoritado">
+          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+        </span>
+        {% endif %}
+        {% if p.n_favorites > 0 %}
+        <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 text-xs font-bold" title="{{ p.n_favorites }} artigo(s) favoritado(s)">
+          ⭐ {{ p.n_favorites }}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    <h3 class="font-display text-[17px] font-bold text-slate-900 leading-[1.35] tracking-tight group-hover:text-brand-700 transition line-clamp-2">{{ p.topic }}</h3>
+    <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+      <span class="vk-mono text-[10.5px] uppercase tracking-[0.12em] text-slate-400 tabular-nums">#{{ p.id }} · {{ p.created_at|brdate }}</span>
+      <span class="text-xs text-brand-600 group-hover:text-brand-700 font-medium">{% if p.n_favorites > 0 %}Ver favoritos →{% else %}Abrir projeto →{% endif %}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="vk-card text-center px-6 py-16">
+  <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-500 border border-amber-100 mb-5">
+    <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+  </div>
+  <div class="vk-eyebrow mb-2 justify-center" style="display:inline-flex;">Sem favoritos ainda</div>
+  <h2 class="font-display text-2xl font-bold text-slate-900 tracking-tighter">Nenhum favorito ainda</h2>
+  <p class="text-sm text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">Marque um projeto ou artigo com a <strong>⭐ estrela</strong> pra ele aparecer aqui pra acesso rápido.</p>
+  <div class="mt-6">
+    <a href="/projetos" class="vk-btn vk-btn-primary">Ver meus projetos</a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

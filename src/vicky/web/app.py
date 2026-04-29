@@ -21,9 +21,13 @@ from ..pipeline import (
     set_main_loop,
 )
 from ..storage import (
+    add_favorite,
+    add_project_favorite,
     clear_user_decision,
     connect,
     project_stats,
+    remove_favorite,
+    remove_project_favorite,
     upsert_user_decision,
 )
 from . import projects as projects_module
@@ -53,7 +57,7 @@ def create_app() -> FastAPI:
     from datetime import datetime, timezone, timedelta
     BRT = timezone(timedelta(hours=-3))
 
-    def _to_brt(value, fmt: str = "%Y-%m-%d %H:%M:%S"):
+    def _to_brt(value, fmt: str = "%d/%m/%Y %H:%M:%S"):
         if not value:
             return ""
         s = str(value).strip()
@@ -62,11 +66,97 @@ def create_app() -> FastAPI:
         try:
             dt = datetime.strptime(s_norm, "%Y-%m-%d %H:%M:%S")
         except ValueError:
-            return s  # se não parsear, mostra cru
+            try:
+                dt = datetime.strptime(s_norm[:10], "%Y-%m-%d")
+            except ValueError:
+                return s
         dt_utc = dt.replace(tzinfo=timezone.utc)
         return dt_utc.astimezone(BRT).strftime(fmt)
 
     templates.env.filters["brt"] = _to_brt
+
+    def _br_date(value, *, with_time: bool = False):
+        """Converte timestamp do banco (UTC, formato 'YYYY-MM-DD[ HH:MM:SS]')
+        em string DD/MM/AAAA — ou DD/MM/AAAA HH:MM se with_time=True. Tolera
+        valores nulos, datetimes e strings já formatadas."""
+        if value is None or value == "":
+            return ""
+        if isinstance(value, datetime):
+            return value.strftime("%d/%m/%Y %H:%M" if with_time else "%d/%m/%Y")
+        s = str(value).strip()
+        s_norm = s.replace("T", " ").split(".")[0][:19]
+        # Tenta parsear data+hora; cai pra só data se necessário
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+            try:
+                dt = datetime.strptime(s_norm[:len("0000-00-00 00:00:00")] if fmt == "%Y-%m-%d %H:%M:%S" else (s_norm[:16] if fmt == "%Y-%m-%d %H:%M" else s_norm[:10]), fmt)
+                break
+            except ValueError:
+                continue
+        else:
+            return s
+        return dt.strftime("%d/%m/%Y %H:%M" if with_time else "%d/%m/%Y")
+
+    templates.env.filters["brdate"] = _br_date
+    templates.env.filters["brdatetime"] = lambda v: _br_date(v, with_time=True)
+
+    # ─── Filtro ABNT: monta referência no formato ABNT NBR 6023:2018 ────────
+    # Inclui autores formatados (SOBRENOME, N.), título, periódico em itálico,
+    # ano, DOI quando disponível e URL com data de acesso.
+    _MESES_ABNT = {1: "jan.", 2: "fev.", 3: "mar.", 4: "abr.", 5: "maio",
+                   6: "jun.", 7: "jul.", 8: "ago.", 9: "set.", 10: "out.",
+                   11: "nov.", 12: "dez."}
+
+    def _format_authors_abnt(authors_raw: str | None) -> str:
+        if not authors_raw:
+            return "[s. n.]"
+        # Aceita "Sobrenome A, Sobrenome B" ou "Nome Sobrenome; Nome Sobrenome"
+        sep = ";" if ";" in authors_raw else ","
+        names = [n.strip() for n in authors_raw.split(sep) if n.strip()]
+        formatted: list[str] = []
+        for n in names[:6]:
+            parts = n.split()
+            if len(parts) == 1:
+                formatted.append(parts[0].upper() + ".")
+                continue
+            # Heurística: estilo PubMed "Sobrenome IN" → primeiro token é sobrenome,
+            # último é iniciais. Estilo "Nome Sobrenome" → último token é sobrenome.
+            last_token = parts[-1]
+            first_token = parts[0]
+            if len(last_token) <= 3 and last_token.isupper():
+                # PubMed style: "Sobrenome IN" → first_token = sobrenome
+                surname = first_token
+                initials = "".join(c + "." for c in last_token)
+            else:
+                surname = last_token
+                initials = "".join(p[0].upper() + ". " for p in parts[:-1]).strip()
+            formatted.append(f"{surname.upper()}, {initials}")
+        result = "; ".join(formatted)
+        if len(names) > 6:
+            result += " et al."
+        return result
+
+    def _abnt_reference(record: dict) -> str:
+        title = (record.get("title") or "[Sem título]").strip().rstrip(".")
+        authors = _format_authors_abnt(record.get("authors"))
+        journal = (record.get("journal") or "").strip()
+        year = record.get("year") or "[s. d.]"
+        doi = record.get("doi") or ""
+        url = record.get("external_url") or ""
+
+        parts = [f"{authors}. {title}."]
+        if journal:
+            parts.append(f"<strong><em>{journal}</em></strong>, {year}.")
+        else:
+            parts.append(f"{year}.")
+        if doi:
+            parts.append(f"DOI: <span class=\"vk-mono\">{doi}</span>.")
+        if url:
+            today = datetime.now()
+            access = f"{today.day:02d} {_MESES_ABNT[today.month]} {today.year}"
+            parts.append(f"Disponível em: &lt;{url}&gt;. Acesso em: {access}.")
+        return " ".join(parts)
+
+    templates.env.filters["abnt"] = _abnt_reference
     app.state.templates = templates
     @app.on_event("startup")
     async def _capture_loop():
@@ -125,11 +215,49 @@ def require_user(user: Annotated[User | None, Depends(get_current_user)]) -> Use
     return user
 
 
-def get_current_workspace(user: Annotated[User, Depends(require_user)]) -> Workspace:
+VIEW_AS_COOKIE = "vk_view_as"
+
+
+def _resolve_view_as_uid(request: Request, user: User | None) -> int | None:
+    """Se admin tem cookie de view-as ativo num GET, retorna o uid alvo. Senão None.
+
+    Mutações (POST/PUT/DELETE) NUNCA são afetadas — ações sempre recaem no
+    workspace do admin (que terá 404 ao mexer em projeto alheio)."""
+    if user is None or user.role != "admin":
+        return None
+    if request.method != "GET":
+        return None
+    raw = request.cookies.get(VIEW_AS_COOKIE)
+    if not raw:
+        return None
+    try:
+        target = int(raw)
+    except ValueError:
+        return None
+    if target == user.id:
+        return None
+    if not users.get_by_id(target):
+        return None
+    return target
+
+
+def get_current_workspace(request: Request,
+                          user: Annotated[User, Depends(require_user)]) -> Workspace:
+    target_uid = _resolve_view_as_uid(request, user)
+    if target_uid is not None:
+        ws = workspaces.get_or_create_for_user(target_uid)
+        return ws
     ws = workspaces.get_or_create_for_user(user.id)
     if ws.owner_user_id != user.id:
         raise HTTPException(403, "Workspace não pertence ao usuário.")
     return ws
+
+
+def get_effective_user_id(request: Request,
+                          user: Annotated[User, Depends(require_user)]) -> int:
+    """User-id efetivo respeitando view-as (admin viewing other user's workspace)."""
+    target_uid = _resolve_view_as_uid(request, user)
+    return target_uid if target_uid is not None else user.id
 
 
 def require_perm(perm: str):
@@ -151,8 +279,20 @@ def get_project_for_workspace(project_id: int, ws: Workspace):
 def render(request: Request, template: str, ctx: dict, *, status_code: int = 200) -> HTMLResponse:
     templates: Jinja2Templates = request.app.state.templates
     user = _user_from_request(request)
-    ws = workspaces.get_or_create_for_user(user.id) if user else None
-    base_ctx = {"user": user, "workspace": ws, "active_path": request.url.path}
+    target_uid = _resolve_view_as_uid(request, user) if user else None
+    if target_uid is not None:
+        ws = workspaces.get_or_create_for_user(target_uid)
+        view_as_user = users.get_by_id(target_uid)
+    else:
+        ws = workspaces.get_or_create_for_user(user.id) if user else None
+        view_as_user = None
+    base_ctx = {
+        "user": user,
+        "workspace": ws,
+        "active_path": request.url.path,
+        "view_as_user": view_as_user,
+        "view_as_active": view_as_user is not None,
+    }
     base_ctx.update(ctx)
     return templates.TemplateResponse(request, template, base_ctx, status_code=status_code)
 
@@ -177,6 +317,10 @@ def register_routes(app: FastAPI) -> None:
         if user:
             return RedirectResponse("/dashboard", status_code=303)
         return render(request, "landing.html", {})
+
+    @app.get("/termos", response_class=HTMLResponse)
+    def terms_of_use(request: Request):
+        return render(request, "terms.html", {})
 
     # ── Login / Logout / Signup ────────────────────────────────────────────
 
@@ -255,7 +399,39 @@ def register_routes(app: FastAPI) -> None:
                       user: Annotated[User, Depends(require_perm("view_records"))],
                       ws: Annotated[Workspace, Depends(get_current_workspace)]):
         ps = projects_module.list_for_workspace(ws.id)
+        eff_uid = _resolve_view_as_uid(request, user) or user.id
+        fav_ids = queries.get_favorite_project_ids(eff_uid, ws.id)
+        for p in ps:
+            p.is_favorite = p.id in fav_ids
         return render(request, "projects/list.html", {"projects": ps})
+
+    @app.post("/projetos/{project_id}/favoritar")
+    def toggle_project_favorite(
+        request: Request,
+        project_id: int,
+        user: Annotated[User, Depends(require_perm("view_records"))],
+        ws: Annotated[Workspace, Depends(get_current_workspace)],
+        action: Annotated[str, Form()] = "toggle",
+        next: Annotated[str, Form()] = "",
+    ):
+        """Marca/desmarca projeto como favorito do usuário logado."""
+        p = get_project_for_workspace(project_id, ws)
+        with connect() as conn:
+            already = conn.execute(
+                "SELECT 1 FROM user_project_favorites WHERE user_id=? AND project_id=?",
+                (user.id, p.id),
+            ).fetchone()
+            if action == "remove" or (action == "toggle" and already):
+                remove_project_favorite(conn, user_id=user.id, project_id=p.id)
+                state = "off"
+            else:
+                add_project_favorite(conn, user_id=user.id, project_id=p.id)
+                state = "on"
+        # Se for chamada AJAX, devolve JSON; senão, redireciona.
+        if request.headers.get("x-requested-with") == "fetch":
+            return JSONResponse({"state": state})
+        target = next or f"/projetos/{p.id}"
+        return RedirectResponse(target, status_code=303)
 
     @app.get("/projetos/novo", response_class=HTMLResponse)
     def projects_new_form(request: Request,
@@ -284,12 +460,9 @@ def register_routes(app: FastAPI) -> None:
             sources=sources or ["pubmed"], created_by=user.id,
         )
         if auto_run == "preview":
-            # Cobra 1 crédito (cobre o discovery + futuro pipeline completo no mesmo projeto)
-            if not users.consume_credit(user.id):
-                return RedirectResponse(
-                    f"/projetos/{p.id}?error=Sem+cr%C3%A9ditos",
-                    status_code=303,
-                )
+            # Pré-visualização de critérios é GRÁTIS — não consome crédito.
+            # Crédito só é debitado quando o usuário roda o pipeline completo
+            # (rota /iniciar).
             from ..pipeline import schedule_discovery_only
             schedule_discovery_only(p.id)
             return RedirectResponse(
@@ -303,7 +476,14 @@ def register_routes(app: FastAPI) -> None:
                     f"/projetos/{p.id}?error=Sem+cr%C3%A9ditos",
                     status_code=303,
                 )
+            # Marca status='searching' ANTES de redirecionar pra que o detalhe do
+            # projeto já mostre "Pipeline rodando" no lugar de "Iniciar pipeline".
+            projects_module.update(p.id, status="searching", error=None)
             schedule_pipeline(p.id)
+            return RedirectResponse(
+                f"/projetos/{p.id}?msg=Pipeline+iniciado%21+Acompanhe+o+progresso+abaixo",
+                status_code=303,
+            )
         return RedirectResponse(f"/projetos/{p.id}", status_code=303)
 
     @app.get("/projetos/{project_id}/export")
@@ -339,6 +519,25 @@ def register_routes(app: FastAPI) -> None:
                 media_type="application/pdf",
                 headers={
                     "Content-Disposition": f'attachment; filename="vicky-{topic_safe}-relatorio.pdf"',
+                },
+            )
+
+        # ── Formato XLSX: planilha com abas Resumo/Top/Excluídos ──────────────
+        if format == "xlsx":
+            from ..xlsx_report import generate_project_xlsx
+            metrics = queries.get_project_dashboard(p.id)
+            top_n = queries.get_included_for_report(p.id, only_top=True)
+            below_cutoff = queries.get_below_cutoff_for_report(p.id)
+            excluded = queries.get_excluded_for_report(p.id)
+            xlsx_bytes = generate_project_xlsx(
+                project=p, metrics=metrics,
+                top_n=top_n, below_cutoff=below_cutoff, excluded=excluded,
+            )
+            return Response(
+                content=xlsx_bytes,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={
+                    "Content-Disposition": f'attachment; filename="vicky-{topic_safe}-relatorio.xlsx"',
                 },
             )
 
@@ -463,6 +662,8 @@ def register_routes(app: FastAPI) -> None:
         m = queries.get_project_dashboard(p.id)
         jobs = queries.get_jobs(p.id)
         top_n = queries.get_top_n(p.id, n=p.target_articles) if p.status == "done" else []
+        eff_uid = _resolve_view_as_uid(request, user) or user.id
+        p.is_favorite = queries.is_project_favorite(eff_uid, p.id)
         return render(request, "projects/detail.html", {
             "p": p, "m": m, "jobs": jobs, "top_n": top_n,
         })
@@ -502,26 +703,55 @@ def register_routes(app: FastAPI) -> None:
         ws: Annotated[Workspace, Depends(get_current_workspace)],
     ):
         p = get_project_for_workspace(project_id, ws)
-        # Lock contra duplo-clique: se está em estado de execução, primeiro
-        # verifica se é zumbi (status preso por crash anterior). Se sim, libera.
-        if p.status in ("searching", "analyzing", "discovering"):
-            zombie, reason = is_pipeline_zombie(p.id)
+        # ── Caso 1: discovery do PREVIEW ainda rodando ─────────────────────
+        # Usuário clicou "Pré-visualizar critérios" e, sem esperar a geração,
+        # agora clica "Iniciar pipeline". NÃO regeramos critérios: setamos a
+        # flag `pending_full_pipeline` para que `run_discovery_only` dispare
+        # `run_full_pipeline` automaticamente quando a discovery atual terminar.
+        if p.status == "discovering":
+            zombie, _reason = is_pipeline_zombie(p.id)
+            if zombie:
+                # Discovery está zumbi (server caiu durante o preview) — destrava
+                # o status e segue como se fosse um run normal.
+                reset_zombie_pipeline(p.id)
+                p = get_project_for_workspace(project_id, ws)
+            else:
+                # Idempotente: se a flag já estava setada (clique duplo), só
+                # avisa que o agendamento já existe — não cobra crédito de novo.
+                if p.pending_full_pipeline:
+                    return RedirectResponse(
+                        f"/projetos/{p.id}?msg=Pipeline+completo+j%C3%A1+est%C3%A1+agendado.+Vamos+iniciar+a+busca+assim+que+os+crit%C3%A9rios+ficarem+prontos",
+                        status_code=303,
+                    )
+                if not users.consume_credit(user.id):
+                    return RedirectResponse(
+                        f"/projetos/{p.id}?error=Sem+cr%C3%A9ditos",
+                        status_code=303,
+                    )
+                projects_module.update(p.id, pending_full_pipeline=1)
+                return RedirectResponse(
+                    f"/projetos/{p.id}?msg=Pipeline+completo+agendado%21+Vamos+iniciar+a+busca+assim+que+os+crit%C3%A9rios+ficarem+prontos+(sem+regerar)",
+                    status_code=303,
+                )
+        # ── Caso 2: pipeline completo já rodando ───────────────────────────
+        if p.status in ("searching", "analyzing"):
+            zombie, _reason = is_pipeline_zombie(p.id)
             if zombie:
                 reset_zombie_pipeline(p.id)
-                # Recarrega depois do reset
                 p = get_project_for_workspace(project_id, ws)
             else:
                 return RedirectResponse(
                     f"/projetos/{p.id}?msg=Pipeline+j%C3%A1+est%C3%A1+rodando",
                     status_code=303,
                 )
-        # Crédito: se está em criteria_ready, o preview já cobrou — não cobra de novo
-        if p.status != "criteria_ready":
-            if not users.consume_credit(user.id):
-                return RedirectResponse(
-                    f"/projetos/{p.id}?error=Sem+cr%C3%A9ditos",
-                    status_code=303,
-                )
+        # ── Caso 3: estado normal (draft / criteria_ready / failed / done) ─
+        # SEMPRE cobra 1 crédito ao iniciar pipeline completo.
+        # Pré-visualizar critérios (rota /projetos com auto_run='preview') é grátis.
+        if not users.consume_credit(user.id):
+            return RedirectResponse(
+                f"/projetos/{p.id}?error=Sem+cr%C3%A9ditos",
+                status_code=303,
+            )
         # Marca status ANTES de agendar — assim o redirect já mostra banner ativo
         # e o botão "Iniciar" desaparece imediatamente, evitando re-cliques.
         projects_module.update(p.id, status="searching", error=None)
@@ -547,6 +777,11 @@ def register_routes(app: FastAPI) -> None:
                 status_code=303,
             )
         try:
+            # Cancela de verdade o coroutine em background. Marca a flag de
+            # cancelamento (workers checam antes de cada item) e tenta cancelar
+            # o future. Sem isso, jobs continuariam rodando após o "Pare".
+            from ..pipeline import request_cancel
+            request_cancel(p.id)
             from ..storage import connect as _connect
             with _connect() as conn:
                 conn.execute(
@@ -555,7 +790,10 @@ def register_routes(app: FastAPI) -> None:
                     "WHERE project_id=? AND status='running'",
                     (p.id,),
                 )
-            projects_module.update(p.id, status="criteria_ready", error=None)
+            # Limpa pending_full_pipeline também — usuário cancelou, então
+            # não queremos auto-disparar mesmo se a flag estava setada.
+            projects_module.update(p.id, status="criteria_ready", error=None,
+                                    pending_full_pipeline=0)
             return RedirectResponse(
                 f"/projetos/{p.id}?msg=Pipeline+cancelado.+Voc%C3%AA+pode+editar+os+crit%C3%A9rios+e+reiniciar",
                 status_code=303,
@@ -605,6 +843,10 @@ def register_routes(app: FastAPI) -> None:
             p.id, q=q, decision=decision, source=source, year=year,
             min_score=min_score_int, sort=sort, page=page, per_page=20,
         )
+        eff_uid = _resolve_view_as_uid(request, user) or user.id
+        fav_keys = queries.get_favorite_keys(eff_uid, p.id)
+        for item in result.items:
+            item["is_favorite"] = (item["source"], item["external_id"]) in fav_keys
         # Contagens para os atalhos de filtro
         m = queries.get_project_dashboard(p.id)
         return render(request, "records/list.html", {
@@ -626,7 +868,70 @@ def register_routes(app: FastAPI) -> None:
         record = queries.get_record_detail(p.id, source, external_id)
         if not record:
             raise HTTPException(404, "Registro não encontrado")
+        eff_uid = _resolve_view_as_uid(request, user) or user.id
+        record["is_favorite"] = queries.is_favorite(eff_uid, p.id, source, external_id)
         return render(request, "records/detail.html", {"p": p, "r": record})
+
+    @app.post("/projetos/{project_id}/registros/{source}/{external_id}/favoritar")
+    def toggle_favorite(
+        request: Request,
+        project_id: int, source: str, external_id: str,
+        user: Annotated[User, Depends(require_perm("view_records"))],
+        ws: Annotated[Workspace, Depends(get_current_workspace)],
+        action: Annotated[str, Form()] = "toggle",
+        next: Annotated[str, Form()] = "",
+    ):
+        """Marca/desmarca artigo como favorito do usuário logado."""
+        p = get_project_for_workspace(project_id, ws)
+        with connect() as conn:
+            exists = conn.execute(
+                "SELECT 1 FROM articles WHERE project_id=? AND source=? AND external_id=?",
+                (p.id, source, external_id),
+            ).fetchone()
+            if not exists:
+                raise HTTPException(404, "Registro não existe neste projeto.")
+            already = conn.execute(
+                "SELECT 1 FROM user_article_favorites WHERE user_id=? AND project_id=? AND source=? AND external_id=?",
+                (user.id, p.id, source, external_id),
+            ).fetchone()
+            if action == "remove" or (action == "toggle" and already):
+                remove_favorite(conn, user_id=user.id, project_id=p.id,
+                                source=source, external_id=external_id)
+                state = "off"
+            else:
+                add_favorite(conn, user_id=user.id, project_id=p.id,
+                             source=source, external_id=external_id)
+                state = "on"
+        if request.headers.get("x-requested-with") == "fetch":
+            return JSONResponse({"state": state})
+        target = next or f"/projetos/{p.id}/registros/{source}/{external_id}"
+        return RedirectResponse(target, status_code=303)
+
+    # ── Favoritos (escopados por usuário, dentro do workspace) ─────────────
+
+    @app.get("/favoritos", response_class=HTMLResponse)
+    def favorites_index(
+        request: Request,
+        user: Annotated[User, Depends(require_perm("view_records"))],
+        ws: Annotated[Workspace, Depends(get_current_workspace)],
+    ):
+        """Lista todos os projetos do workspace que tenham pelo menos 1 favorito do user."""
+        eff_uid = _resolve_view_as_uid(request, user) or user.id
+        projects = queries.list_favorite_projects(eff_uid, ws.id)
+        return render(request, "favorites/index.html", {"projects": projects})
+
+    @app.get("/favoritos/{project_id}", response_class=HTMLResponse)
+    def favorites_in_project(
+        request: Request,
+        project_id: int,
+        user: Annotated[User, Depends(require_perm("view_records"))],
+        ws: Annotated[Workspace, Depends(get_current_workspace)],
+    ):
+        p = get_project_for_workspace(project_id, ws)
+        eff_uid = _resolve_view_as_uid(request, user) or user.id
+        favorites = queries.list_favorites_in_project(eff_uid, p.id)
+        return render(request, "favorites/project.html",
+                      {"p": p, "favorites": favorites})
 
     @app.post("/projetos/{project_id}/registros/{source}/{external_id}/decisao")
     def set_decision(
@@ -842,3 +1147,41 @@ def register_routes(app: FastAPI) -> None:
         if not item:
             raise HTTPException(404, "Chamada não encontrada")
         return render(request, "api_usage/detail.html", {"r": item})
+
+    # ── Admin: view-as (entrar/sair) + Relatórios ───────────────────────────
+
+    @app.post("/admin/view-as/sair")
+    def admin_exit_view_as(
+        request: Request,
+        user: Annotated[User, Depends(require_user)],
+        next: Annotated[str, Form()] = "/usuarios",
+    ):
+        resp = RedirectResponse(next or "/usuarios", status_code=303)
+        resp.delete_cookie(VIEW_AS_COOKIE)
+        return resp
+
+    @app.post("/admin/view-as/{target_uid}")
+    def admin_enter_view_as(
+        request: Request, target_uid: int,
+        user: Annotated[User, Depends(require_perm("manage_users"))],
+        next: Annotated[str, Form()] = "/dashboard",
+    ):
+        """Admin entra no modo de visualização do workspace de outro usuário."""
+        target = users.get_by_id(target_uid)
+        if not target:
+            return RedirectResponse("/usuarios?error=Usu%C3%A1rio+n%C3%A3o+encontrado",
+                                    status_code=303)
+        if target_uid == user.id:
+            return RedirectResponse("/dashboard", status_code=303)
+        resp = RedirectResponse(next or "/dashboard", status_code=303)
+        resp.set_cookie(VIEW_AS_COOKIE, str(target_uid),
+                        httponly=True, samesite="lax", max_age=60 * 60 * 8)
+        return resp
+
+    @app.get("/admin/relatorios", response_class=HTMLResponse)
+    def admin_reports(
+        request: Request,
+        user: Annotated[User, Depends(require_perm("manage_users"))],
+    ):
+        report = queries.get_admin_reports()
+        return render(request, "admin/reports.html", {"r": report})

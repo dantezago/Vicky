@@ -254,6 +254,7 @@ async def run_full_pipeline(project_id: int) -> None:
         useless_streak = 0
 
         while True:
+            check_cancelled(project_id)
             iteration += 1
             stats = _project_counts(project_id)
 
@@ -547,6 +548,15 @@ async def run_full_pipeline(project_id: int) -> None:
 
         _close_orphan_jobs(project_id, "Pipeline concluído")
         projects_module.update(project_id, status="done", error=None)
+    except asyncio.CancelledError:
+        # Cancelamento do usuário — a rota /parar já marca jobs e o status do
+        # projeto. Apenas garante que jobs órfãos sejam fechados e propaga.
+        try:
+            _close_orphan_jobs(project_id, "Cancelado pelo usuário")
+        except Exception:
+            pass
+        _CANCEL_REQUESTED.discard(project_id)
+        raise
     except LLMUnavailableError:
         traceback.print_exc()
         _fail_project(project_id, "Sem créditos")
@@ -1285,6 +1295,8 @@ async def _step_analyze(project_id: int, cfg: Config, model: str,
 
         async def worker() -> None:
             while True:
+                if is_cancelled(project_id):
+                    return
                 try:
                     art = queue.get_nowait()
                 except asyncio.QueueEmpty:
@@ -1376,6 +1388,8 @@ async def _step_double_check(project_id: int, cfg: Config, model: str) -> None:
 
         async def worker() -> None:
             while True:
+                if is_cancelled(project_id):
+                    return
                 try:
                     art, an = queue.get_nowait()
                 except asyncio.QueueEmpty:
@@ -2162,18 +2176,76 @@ def set_main_loop(loop: asyncio.AbstractEventLoop) -> None:
     _MAIN_LOOP = loop
 
 
+# ─── Cancelamento cooperativo de pipelines ─────────────────────────────────
+# Mantém o handle (Task ou concurrent.futures.Future) por project_id pra que
+# a rota POST /projetos/{id}/parar consiga interromper de verdade. Os steps
+# longos checam `is_cancelled(project_id)` em pontos seguros e levantam
+# CancelledError pra desenrolar limpo.
+import concurrent.futures as _cf
+
+_RUNNING_PIPELINES: dict[int, "_cf.Future | asyncio.Task"] = {}
+_CANCEL_REQUESTED: set[int] = set()
+
+
+def is_cancelled(project_id: int) -> bool:
+    return project_id in _CANCEL_REQUESTED
+
+
+def check_cancelled(project_id: int) -> None:
+    """Levanta CancelledError se o usuário pediu parada. Chamado em pontos
+    seguros dos workers/loops pra interromper sem corromper estado."""
+    if project_id in _CANCEL_REQUESTED:
+        raise asyncio.CancelledError(f"pipeline {project_id} cancelado pelo usuário")
+
+
+def request_cancel(project_id: int) -> bool:
+    """Marca o pipeline como cancelado e tenta interromper o future/task.
+    Retorna True se havia algo rodando para cancelar."""
+    _CANCEL_REQUESTED.add(project_id)
+    fut = _RUNNING_PIPELINES.get(project_id)
+    if fut is None:
+        return False
+    try:
+        fut.cancel()
+    except Exception:
+        pass
+    return True
+
+
+def _track_pipeline(project_id: int, fut) -> None:
+    _RUNNING_PIPELINES[project_id] = fut
+    def _cleanup(_):
+        _RUNNING_PIPELINES.pop(project_id, None)
+        _CANCEL_REQUESTED.discard(project_id)
+    try:
+        fut.add_done_callback(_cleanup)
+    except Exception:
+        pass
+
+
 async def run_discovery_only(project_id: int) -> None:
     """Roda apenas o passo de discovery (gera critérios PICO + search strings).
 
     Usado pelo fluxo de pré-visualização: o usuário cria o projeto, vê os critérios
     que a IA gerou e só então decide se quer iniciar o pipeline completo.
+
+    Hand-off ao pipeline completo: se o usuário clicou "Iniciar pipeline" enquanto
+    a discovery ainda estava rodando, a rota `/iniciar` setou
+    `pending_full_pipeline=1`. Ao final desta função consumimos a flag e
+    disparamos `run_full_pipeline` (que pula a etapa de discovery porque
+    `criteria_md` já está preenchido), sem regerar critérios e sem cobrar
+    crédito de novo (já foi cobrado quando a flag foi setada).
     """
     cfg = Config.load()
     p = projects_module.get(project_id)
     if not p:
         return
     if p.criteria_md and p.search_strings.get("pubmed"):
-        # Já tem critérios — não regera
+        # Já tem critérios — não regera. Mesmo assim respeita pending flag,
+        # caso tenha sido setada depois de discovery completa.
+        if getattr(p, "pending_full_pipeline", 0):
+            projects_module.update(project_id, pending_full_pipeline=0)
+            await run_full_pipeline(project_id)
         return
     ws = workspaces_module.get_by_id(p.workspace_id)
     if not ws:
@@ -2183,21 +2255,39 @@ async def run_discovery_only(project_id: int) -> None:
     projects_module.update(project_id, status="discovering", error=None)
     try:
         await _step_discovery(project_id, cfg, model)
+    except asyncio.CancelledError:
+        try:
+            _close_orphan_jobs(project_id, "Cancelado pelo usuário")
+        except Exception:
+            pass
+        _CANCEL_REQUESTED.discard(project_id)
+        raise
     except Exception as e:
         if _is_llm_fatal_error(e):
             _fail_project(project_id, "Sem créditos")
         else:
             _fail_project(project_id, f"Discovery falhou: {type(e).__name__}")
+        return
+    # Discovery completou com sucesso. Se o usuário pediu pipeline completo
+    # durante o preview (botão "Iniciar pipeline" enquanto status=discovering),
+    # consome a flag e dispara o pipeline completo automaticamente.
+    p_after = projects_module.get(project_id)
+    if p_after and getattr(p_after, "pending_full_pipeline", 0):
+        projects_module.update(project_id, pending_full_pipeline=0)
+        await run_full_pipeline(project_id)
 
 
 def schedule_discovery_only(project_id: int) -> None:
     """Agenda apenas o discovery em background (mesma mecânica do schedule_pipeline)."""
+    _CANCEL_REQUESTED.discard(project_id)
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(run_discovery_only(project_id))
+        task = loop.create_task(run_discovery_only(project_id))
+        _track_pipeline(project_id, task)
     except RuntimeError:
         if _MAIN_LOOP is not None:
-            asyncio.run_coroutine_threadsafe(run_discovery_only(project_id), _MAIN_LOOP)
+            fut = asyncio.run_coroutine_threadsafe(run_discovery_only(project_id), _MAIN_LOOP)
+            _track_pipeline(project_id, fut)
         else:
             import threading
             threading.Thread(
@@ -2208,13 +2298,16 @@ def schedule_discovery_only(project_id: int) -> None:
 
 def schedule_pipeline(project_id: int) -> None:
     """Dispara o pipeline em background. Funciona dentro ou fora do event loop."""
+    _CANCEL_REQUESTED.discard(project_id)
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(run_full_pipeline(project_id))
+        task = loop.create_task(run_full_pipeline(project_id))
+        _track_pipeline(project_id, task)
     except RuntimeError:
         # Estamos numa thread sem event loop (ex: rota síncrona do FastAPI)
         if _MAIN_LOOP is not None:
-            asyncio.run_coroutine_threadsafe(run_full_pipeline(project_id), _MAIN_LOOP)
+            fut = asyncio.run_coroutine_threadsafe(run_full_pipeline(project_id), _MAIN_LOOP)
+            _track_pipeline(project_id, fut)
         else:
             # Último recurso: roda sincronamente em nova thread
             import threading

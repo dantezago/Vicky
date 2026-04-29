@@ -390,6 +390,88 @@ def get_workspace_dashboard(ws_id: int) -> dict[str, Any]:
     }
 
 
+def get_admin_reports() -> dict[str, Any]:
+    """Visão administrativa: todos os projetos × usuários, com taxa de meta atingida.
+
+    Meta atingida = projeto.status='done' E COUNT(in_top_n=1) >= target_articles.
+    Quebras: por usuário, por review_type, totais."""
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT p.id AS project_id, p.topic, p.status, p.review_type,
+                      p.target_articles, p.created_at, p.updated_at,
+                      p.workspace_id,
+                      u.id AS user_id, u.name AS user_name, u.email AS user_email,
+                      u.role AS user_role,
+                      COALESCE((SELECT COUNT(*) FROM analyses an2
+                                WHERE an2.project_id=p.id AND an2.in_top_n=1), 0) AS top_n_count,
+                      COALESCE((SELECT COUNT(*) FROM articles a2
+                                WHERE a2.project_id=p.id AND a2.is_duplicate=0), 0) AS total_articles
+               FROM projects p
+               JOIN workspaces w ON w.id = p.workspace_id
+               JOIN users u ON u.id = w.owner_user_id
+               ORDER BY u.name ASC, p.created_at DESC"""
+        ).fetchall()
+    projects: list[dict] = []
+    by_user: dict[int, dict] = {}
+    by_type: dict[str, dict] = {}
+    n_total = 0
+    n_done = 0
+    n_hit = 0
+    for r in rows:
+        d = dict(r)
+        target = d.get("target_articles") or 0
+        top_n = d.get("top_n_count") or 0
+        is_done = d.get("status") == "done"
+        hit = bool(is_done and target > 0 and top_n >= target)
+        d["hit_target"] = hit
+        d["coverage_pct"] = round(100 * top_n / target, 1) if target else 0.0
+        projects.append(d)
+        n_total += 1
+        if is_done:
+            n_done += 1
+        if hit:
+            n_hit += 1
+        # by user
+        uid = d["user_id"]
+        bu = by_user.setdefault(uid, {
+            "user_id": uid, "user_name": d["user_name"], "user_email": d["user_email"],
+            "user_role": d["user_role"],
+            "n_projects": 0, "n_done": 0, "n_hit": 0,
+        })
+        bu["n_projects"] += 1
+        if is_done:
+            bu["n_done"] += 1
+        if hit:
+            bu["n_hit"] += 1
+        # by review_type
+        rt = d.get("review_type") or "—"
+        bt = by_type.setdefault(rt, {
+            "review_type": rt, "n_projects": 0, "n_done": 0, "n_hit": 0,
+        })
+        bt["n_projects"] += 1
+        if is_done:
+            bt["n_done"] += 1
+        if hit:
+            bt["n_hit"] += 1
+    for bu in by_user.values():
+        d_done = bu["n_done"] or 1
+        bu["hit_rate"] = round(100 * bu["n_hit"] / d_done, 1) if bu["n_done"] else 0.0
+    for bt in by_type.values():
+        bt["hit_rate"] = (round(100 * bt["n_hit"] / bt["n_done"], 1)
+                          if bt["n_done"] else 0.0)
+    return {
+        "projects": projects,
+        "by_user": sorted(by_user.values(), key=lambda x: -x["n_projects"]),
+        "by_review_type": sorted(by_type.values(), key=lambda x: -x["n_projects"]),
+        "totals": {
+            "n_projects": n_total,
+            "n_done": n_done,
+            "n_hit": n_hit,
+            "hit_rate": round(100 * n_hit / n_done, 1) if n_done else 0.0,
+        },
+    }
+
+
 def get_project_dashboard(project_id: int) -> dict[str, Any]:
     """Métricas de um projeto específico.
 
@@ -761,3 +843,98 @@ def get_jobs(project_id: int) -> list[dict]:
             "SELECT * FROM jobs WHERE project_id=? ORDER BY id ASC", (project_id,)
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ─── Favoritos ─────────────────────────────────────────────────────────────
+
+
+def list_favorite_projects(user_id: int, workspace_id: int) -> list[dict]:
+    """Projetos do workspace que o usuário favoritou OU que têm pelo menos
+    1 artigo favoritado pelo usuário. Retorna n_favorites (0 se nenhum artigo)
+    e is_project_favorite (bool) para a UI distinguir os dois casos."""
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT p.id, p.topic, p.status, p.review_type, p.created_at,
+                      p.target_articles,
+                      COALESCE(art.n, 0) AS n_favorites,
+                      CASE WHEN pf.user_id IS NOT NULL THEN 1 ELSE 0 END
+                          AS is_project_favorite
+               FROM projects p
+               LEFT JOIN user_project_favorites pf
+                      ON pf.project_id = p.id AND pf.user_id = ?
+               LEFT JOIN (
+                   SELECT project_id, COUNT(*) AS n, MAX(created_at) AS last_at
+                     FROM user_article_favorites
+                    WHERE user_id = ?
+                    GROUP BY project_id
+               ) art ON art.project_id = p.id
+               WHERE p.workspace_id = ?
+                 AND (pf.user_id IS NOT NULL OR art.n > 0)
+               ORDER BY p.created_at DESC""",
+            (user_id, user_id, workspace_id),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def list_favorites_in_project(user_id: int, project_id: int) -> list[dict]:
+    """Artigos favoritados pelo usuário num projeto específico."""
+    with connect() as conn:
+        rows = conn.execute(
+            f"""SELECT a.source, a.external_id, a.title, a.authors, a.year, a.journal,
+                       a.doi, a.external_url,
+                       an.quality_score, an.summary_pt, an.reason,
+                       COALESCE(an.in_top_n, 0) AS in_top_n,
+                       ud.decision AS user_decision,
+                       {EFFECTIVE_DECISION_SQL} AS decision,
+                       f.created_at AS favorited_at, f.note AS favorite_note
+                FROM user_article_favorites f
+                JOIN articles a ON a.project_id = f.project_id
+                              AND a.source = f.source
+                              AND a.external_id = f.external_id
+                {EFFECTIVE_JOIN}
+                WHERE f.user_id = ? AND f.project_id = ?
+                ORDER BY f.created_at DESC""",
+            (user_id, project_id),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def is_favorite(user_id: int, project_id: int, source: str, external_id: str) -> bool:
+    with connect() as conn:
+        return bool(conn.execute(
+            "SELECT 1 FROM user_article_favorites WHERE user_id=? AND project_id=? AND source=? AND external_id=?",
+            (user_id, project_id, source, external_id),
+        ).fetchone())
+
+
+def get_favorite_project_ids(user_id: int, workspace_id: int) -> set[int]:
+    """Conjunto de project_ids favoritados pelo usuário no workspace."""
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT f.project_id
+              FROM user_project_favorites f
+              JOIN projects p ON p.id = f.project_id
+             WHERE f.user_id=? AND p.workspace_id=?
+            """,
+            (user_id, workspace_id),
+        ).fetchall()
+        return {r["project_id"] for r in rows}
+
+
+def is_project_favorite(user_id: int, project_id: int) -> bool:
+    with connect() as conn:
+        return bool(conn.execute(
+            "SELECT 1 FROM user_project_favorites WHERE user_id=? AND project_id=?",
+            (user_id, project_id),
+        ).fetchone())
+
+
+def get_favorite_keys(user_id: int, project_id: int) -> set[tuple[str, str]]:
+    """Conjunto de (source, external_id) favoritados pelo usuário neste projeto."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT source, external_id FROM user_article_favorites WHERE user_id=? AND project_id=?",
+            (user_id, project_id),
+        ).fetchall()
+        return {(r["source"], r["external_id"]) for r in rows}

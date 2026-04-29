@@ -4,7 +4,7 @@
 {% from "components/link_button.html" import link_button %}
 {% from "components/pipeline_banner.html" import pipeline_banner %}
 {% block title %}{{ p.topic|truncate(50) }} · Vicky{% endblock %}
-{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5">Projeto #{{ p.id }} · criado em {{ p.created_at[:10] }}</div>{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5">Projeto #{{ p.id }} · criado em {{ p.created_at|brdate }}</div>{% endblock %}
 {% block page_title %}{{ p.topic }}{% endblock %}
 {% block page_subtitle %}{% endblock %}
 
@@ -14,7 +14,7 @@
 
 {% block content %}
 
-<div class="mb-5 flex items-center justify-between flex-wrap gap-3">
+<div class="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
   <div class="flex items-center gap-3 flex-wrap">
     {{ status_badge(p.status) }}
     {% if p.review_type == 'narrative_review' %}
@@ -27,9 +27,23 @@
       <span class="inline-flex items-center gap-1 rounded-md bg-slate-50 text-slate-600 text-[11px] font-medium px-2 py-1 border border-slate-200" title="Maturidade detectada pela Vicky. Ajusta os pesos do score metodológico.">✦ {{ mat_label.get(p.topic_maturity, p.topic_maturity) }}</span>
     {% endif %}
   </div>
-  <div class="flex items-center gap-2 flex-wrap">
+  <div class="flex items-center gap-2 flex-wrap sm:ml-auto">
+    <form action="/projetos/{{ p.id }}/favoritar" method="post" class="inline" data-fav-form>
+      <input type="hidden" name="action" value="toggle">
+      <input type="hidden" name="next" value="/projetos/{{ p.id }}">
+      <button type="submit"
+              data-label-on="Remover dos favoritos"
+              data-label-off="Marcar como favorito"
+              class="inline-flex items-center justify-center h-9 w-9 rounded-md border border-amber-200 hover:bg-amber-50 shadow-sm transition
+                     {% if p.is_favorite %}text-amber-500 bg-amber-50{% else %}text-slate-300 bg-white{% endif %}"
+              title="{% if p.is_favorite %}Remover dos favoritos{% else %}Marcar como favorito{% endif %}"
+              aria-label="{% if p.is_favorite %}Remover dos favoritos{% else %}Marcar como favorito{% endif %}">
+        <svg data-fav-on class="h-5 w-5{% if not p.is_favorite %} hidden{% endif %}" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+        <svg data-fav-off class="h-5 w-5{% if p.is_favorite %} hidden{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+      </button>
+    </form>
     <a href="/projetos/{{ p.id }}/registros" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium shadow-sm">
-      Ver todos os registros ({{ m.total_articles }})
+      Ver todos os artigos ({{ m.total_articles }})
     </a>
 
     {% if p.status == 'done' and m.included > 0 %}
@@ -50,6 +64,14 @@
           📄 PDF · Incluídos e excluídos com resumo
           <div class="text-[10px] font-normal text-slate-500 mt-0.5">Top por score + lista de excluídos com motivo</div>
         </a>
+
+        <!-- XLSX: planilha pra abrir no Excel/Google Sheets -->
+        <div class="px-3 py-1 mt-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Planilha</div>
+        <a href="/projetos/{{ p.id }}/export?format=xlsx" download
+           class="block px-3 py-3 hover:bg-emerald-50 text-emerald-700 font-medium border-l-2 border-emerald-600">
+          📊 XLSX · Planilha (Excel/Google Sheets)
+          <div class="text-[10px] font-normal text-slate-500 mt-0.5">Abas: Resumo, Top, Excluídos — pronto pra anexar à monografia</div>
+        </a>
       </div>
     </div>
     {% endif %}
@@ -58,8 +80,10 @@
     <form action="/projetos/{{ p.id }}/iniciar" method="post" class="inline"
           x-data="{starting: false}" @submit="starting = true">
       <button type="submit" :disabled="starting"
-              class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 disabled:cursor-wait text-white font-medium shadow-sm">
-        <span x-show="!starting">▶ Iniciar pipeline</span>
+              title="Iniciar o pipeline completo (busca + análise + double-check). Consome 1 crédito."
+              class="inline-flex flex-col items-center justify-center gap-0 rounded-md px-3 py-1 text-sm bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 disabled:cursor-wait text-white font-medium shadow-sm leading-tight">
+        <span x-show="!starting" class="inline-flex items-center gap-1.5">▶ Iniciar pipeline</span>
+        <span x-show="!starting" class="vk-mono text-[9.5px] uppercase tracking-[0.14em] opacity-90 font-semibold">consome 1 crédito</span>
         <span x-show="starting" x-cloak class="inline-flex items-center gap-1.5">
           <svg class="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -70,6 +94,7 @@
       </button>
     </form>
     {% elif p.status in ['searching','analyzing','discovering'] %}
+    {% if p.status != 'discovering' %}
     <span class="inline-flex items-center gap-1.5 text-xs text-amber-700 font-medium bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
       <svg class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -77,41 +102,142 @@
       </svg>
       Pipeline rodando
     </span>
-    <form action="/projetos/{{ p.id }}/parar" method="post" class="inline"
-          onsubmit="return confirm('Tem certeza que deseja PARAR o pipeline em andamento? Os artigos já analisados são preservados, mas a coleta atual será interrompida e você precisará reiniciar o pipeline depois.');">
-      <button type="submit"
+    {% endif %}
+
+    {# Durante a pré-visualização (status='discovering'), oferece o atalho de
+       "Iniciar pipeline" — consome 1 crédito agora e arma o auto-disparo
+       quando os critérios ficarem prontos, sem regerar discovery. #}
+    {% if p.status == 'discovering' and not p.pending_full_pipeline %}
+    <form action="/projetos/{{ p.id }}/iniciar" method="post" class="inline"
+          x-data="{starting: false}" @submit="starting = true"
+          onsubmit="return confirm('Iniciar pipeline completo assim que os critérios ficarem prontos? Vamos consumir 1 crédito agora e disparar a busca automaticamente quando a discovery terminar (sem regerar critérios).');">
+      <button type="submit" :disabled="starting"
+              title="Consome 1 crédito agora e dispara automaticamente o pipeline completo quando os critérios ficarem prontos."
+              class="inline-flex flex-col items-center justify-center gap-0 rounded-md px-3 py-1 text-sm bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 disabled:cursor-wait text-white font-medium shadow-sm leading-tight">
+        <span x-show="!starting" class="inline-flex items-center gap-1.5">▶ Iniciar pipeline</span>
+        <span x-show="!starting" class="vk-mono text-[9.5px] uppercase tracking-[0.14em] opacity-90 font-semibold">consome 1 crédito</span>
+        <span x-show="starting" x-cloak>Agendando…</span>
+      </button>
+    </form>
+    {% elif p.pending_full_pipeline %}
+    <span class="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1.5"
+          title="Pipeline completo já agendado: vai começar assim que os critérios ficarem prontos.">
+      ✓ Pipeline agendado
+    </span>
+    {% endif %}
+
+    <div x-data="{open: false, step: 1, stopping: false}" @keydown.escape.window="open=false; step=1">
+      <button type="button" @click="open = true; step = 1"
               class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm bg-rose-600 hover:bg-rose-700 text-white font-medium shadow-sm">
         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <rect x="6" y="6" width="12" height="12" rx="1"/>
         </svg>
         Parar pipeline
       </button>
-    </form>
-    {% endif %}
 
-    <!-- Menu mais (...) com excluir -->
-    <div class="relative" x-data="{open: false, confirming: false}">
-      <button @click="open = !open" class="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-slate-100 text-slate-500" title="Mais ações">
-        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-      </button>
-      <div x-show="open" @click.away="open = false" x-cloak x-transition
-           class="absolute right-0 top-10 z-30 w-56 bg-white rounded-lg shadow-lg border border-slate-200 py-2 text-sm">
-        <div x-show="!confirming">
-          <button @click="confirming = true" class="w-full text-left px-4 py-2 text-rose-600 hover:bg-rose-50">
-            🗑 Excluir projeto
-          </button>
-        </div>
-        <div x-show="confirming" x-cloak class="p-3">
-          <div class="text-xs text-slate-700 mb-2">
-            <strong>Tem certeza?</strong><br>
-            Isso apaga {{ m.total_articles }} artigos e {{ m.analyzed }} análises. Não pode ser desfeito.
+      {# Modal branded de dupla confirmação (desktop + mobile) #}
+      <div x-show="open" x-cloak x-transition.opacity
+           class="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+           @click.self="if (!stopping) { open = false; step = 1; }">
+        <div x-show="open" x-cloak
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 translate-y-4 sm:scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+          <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-rose-50 to-white border-b border-rose-100 flex items-center gap-3">
+            <span class="shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/></svg>
+            </span>
+            <div class="flex-1 min-w-0">
+              <h3 class="text-sm sm:text-base font-semibold text-slate-900 leading-snug">
+                <span x-show="step === 1">Parar o pipeline em andamento?</span>
+                <span x-show="step === 2">Confirmação final</span>
+              </h3>
+              <p class="text-[11px] text-rose-700 mt-0.5 vk-mono uppercase tracking-[0.12em] font-semibold">
+                <span x-show="step === 1">Etapa 1 de 2</span>
+                <span x-show="step === 2">Etapa 2 de 2</span>
+              </p>
+            </div>
           </div>
-          <div class="flex gap-2">
-            <form action="/projetos/{{ p.id }}/excluir" method="post" class="flex-1">
-              <button type="submit" class="w-full rounded-md bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium py-1.5">Sim, excluir</button>
+
+          <div class="px-5 sm:px-6 py-5 space-y-3 text-sm text-slate-700 leading-relaxed">
+            <template x-if="step === 1">
+              <div class="space-y-3">
+                <p>O pipeline está rodando agora — buscando, analisando e auditando artigos. Parar agora vai:</p>
+                <ul class="space-y-2 text-xs bg-slate-50 rounded-lg border border-slate-200 p-3">
+                  <li class="flex items-start gap-2"><span class="text-rose-600">●</span><span><strong>Interromper</strong> a coleta e a análise em andamento.</span></li>
+                  <li class="flex items-start gap-2"><span class="text-emerald-600">●</span><span><strong>Preservar</strong> os artigos já analisados até aqui.</span></li>
+                  <li class="flex items-start gap-2"><span class="text-amber-600">●</span><span><strong>Cessar</strong> qualquer chamada de IA — não haverá mais consumo nesse projeto.</span></li>
+                  <li class="flex items-start gap-2"><span class="text-slate-500">●</span><span>Você precisará reiniciar o pipeline depois pra continuar.</span></li>
+                </ul>
+              </div>
+            </template>
+            <template x-if="step === 2">
+              <div class="space-y-3">
+                <p class="font-medium text-slate-900">Tem certeza absoluta?</p>
+                <p class="text-xs text-slate-600">Esta é a última confirmação. Ao clicar em <strong>"Sim, parar agora"</strong>, o pipeline será cancelado imediatamente e nenhuma nova ação será executada nesse projeto.</p>
+              </div>
+            </template>
+          </div>
+
+          <div class="px-5 sm:px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+            <button type="button" @click="open = false; step = 1" :disabled="stopping"
+                    class="rounded-md bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-50 text-slate-700 text-sm font-medium px-4 py-2.5 sm:py-2">
+              Cancelar
+            </button>
+            <button type="button" x-show="step === 1" @click="step = 2"
+                    class="rounded-md bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold px-4 py-2.5 sm:py-2 shadow-sm inline-flex items-center justify-center gap-1.5">
+              Parar pipeline
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>
+            <form x-show="step === 2" action="/projetos/{{ p.id }}/parar" method="post" class="contents"
+                  @submit="stopping = true">
+              <button type="submit" :disabled="stopping"
+                      class="rounded-md bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 disabled:cursor-wait text-white text-sm font-semibold px-4 py-2.5 sm:py-2 shadow-sm inline-flex items-center justify-center gap-1.5">
+                <svg x-show="!stopping" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                <svg x-show="stopping" x-cloak class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+                <span x-text="stopping ? 'Parando…' : 'Sim, parar agora'"></span>
+              </button>
             </form>
-            <button @click="confirming = false" class="rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-3">Cancelar</button>
           </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Menu mais (...) com excluir -->
+  <div class="relative order-first self-end sm:order-last sm:self-auto" x-data="{open: false, confirming: false}" @keydown.escape.window="open=false; confirming=false">
+    <button @click="open = !open" type="button"
+            class="inline-flex items-center justify-center h-9 w-9 rounded-md hover:bg-slate-100 text-slate-500 active:bg-slate-200" title="Mais ações" aria-haspopup="menu" :aria-expanded="open">
+      <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+    </button>
+    {# Backdrop full-screen no mobile pra garantir que o popup fecha com 1 toque
+       e fica claramente clicável mesmo quando aparecer em viewports estreitas. #}
+    <div x-show="open" x-cloak @click="open=false; confirming=false"
+         class="fixed inset-0 z-40 bg-slate-900/30 sm:hidden"
+         x-transition.opacity></div>
+    <div x-show="open" @click.away="open = false; confirming = false" x-cloak x-transition
+         class="fixed left-3 right-3 top-auto bottom-4 sm:absolute sm:left-auto sm:right-0 sm:bottom-auto sm:top-10 z-50 sm:w-64 max-w-md mx-auto sm:mx-0 bg-white rounded-xl shadow-2xl sm:shadow-lg border border-slate-200 py-2 text-sm">
+      <div x-show="!confirming">
+        <button @click="confirming = true" type="button"
+                class="w-full text-left px-4 py-3 sm:py-2 text-rose-600 hover:bg-rose-50 active:bg-rose-100 font-medium">
+          🗑 Excluir projeto
+        </button>
+      </div>
+      <div x-show="confirming" x-cloak class="p-4 sm:p-3">
+        <div class="text-xs text-slate-700 mb-3 leading-relaxed">
+          <strong>Tem certeza?</strong><br>
+          Isso apaga {{ m.total_articles }} artigos e {{ m.analyzed }} análises. Não pode ser desfeito.
+        </div>
+        <div class="flex gap-2">
+          <form action="/projetos/{{ p.id }}/excluir" method="post" class="flex-1">
+            <button type="submit" class="w-full rounded-md bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-sm sm:text-xs font-medium py-2 sm:py-1.5">Sim, excluir</button>
+          </form>
+          <button @click="confirming = false" type="button" class="rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 text-sm sm:text-xs px-4 sm:px-3 py-2 sm:py-1.5">Cancelar</button>
         </div>
       </div>
     </div>
@@ -265,21 +391,11 @@
         <!-- Métricas de RESULTADO -->
         <div>
           <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Resultado final</div>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <div class="grid grid-cols-2 gap-3 text-sm">
             <div class="bg-emerald-50 rounded-lg px-3 py-2.5 border border-emerald-200">
               <div class="text-xs text-emerald-700">Top final</div>
               <div class="text-xl font-bold text-emerald-900 tabular-nums mt-0.5">{{ m.included_top|default(0) }}<span class="text-sm opacity-60">/{{ p.target_articles }}</span></div>
               <div class="text-[10px] text-emerald-700 mt-0.5">artigos selecionados</div>
-            </div>
-            <div class="bg-violet-50 rounded-lg px-3 py-2.5 border border-violet-200">
-              <div class="text-xs text-violet-700">Quality Score médio</div>
-              <div class="text-xl font-bold text-violet-900 tabular-nums mt-0.5">{{ m.top40_avg or '—' }}</div>
-              <div class="text-[10px] text-violet-700 mt-0.5">no Top final</div>
-            </div>
-            <div class="bg-blue-50 rounded-lg px-3 py-2.5 border border-blue-200">
-              <div class="text-xs text-blue-700">Faixa de qualidade</div>
-              <div class="text-xl font-bold text-blue-900 tabular-nums mt-0.5">{% if top_scores %}{{ top_min }}–{{ top_max }}{% else %}—{% endif %}</div>
-              <div class="text-[10px] text-blue-700 mt-0.5">menor / maior do Top</div>
             </div>
             <div class="bg-rose-50 rounded-lg px-3 py-2.5 border border-rose-200">
               <div class="text-xs text-rose-700">Taxa de inclusão</div>
@@ -397,7 +513,10 @@
       <div class="divide-y divide-slate-100">
         {% for r in top_n[:10] %}
         <a href="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}" class="flex items-start gap-3 px-6 py-3 hover:bg-slate-50 transition">
-          <div class="shrink-0 mt-0.5">{{ score_pill(r.quality_score) }}</div>
+          <div class="shrink-0 mt-0.5 flex flex-col items-center" title="Quality Score">
+            {{ score_pill(r.quality_score) }}
+            <span class="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-400 leading-none mt-0.5">Score</span>
+          </div>
           <div class="flex-1 min-w-0">
             <div class="text-sm font-medium text-slate-900 line-clamp-1">{{ loop.index }}. {{ r.title }}</div>
             <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
@@ -780,12 +899,6 @@
       </dl>
     </div>
 
-    {% if m.top40_avg %}
-    <div class="bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl shadow-card p-5 text-white">
-      <div class="text-xs uppercase tracking-wider opacity-90">Quality Score médio do Top</div>
-      <div class="mt-2 text-3xl font-bold tabular-nums">{{ m.top40_avg }}</div>
-    </div>
-    {% endif %}
   </aside>
 </div>
 

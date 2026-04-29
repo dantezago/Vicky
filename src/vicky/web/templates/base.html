@@ -68,6 +68,58 @@
     if (!t.value) return;
     setTimeout(function() { try { t.select(); } catch(_){} }, 0);
   });
+
+  // ── Toggle de favoritos via fetch (preserva scroll/posição) ─────────────
+  // Aplica-se a qualquer <form data-fav-form> com botão contendo dois SVGs:
+  //   data-fav-on  (estrela preenchida) e data-fav-off (contorno).
+  // Previne o foco ao clicar no botão. Sem isso, o `scroll-behavior: smooth`
+  // global dispara um scroll-into-view animado que rola a página inteira.
+  document.addEventListener('mousedown', function(ev) {
+    if (ev.target.closest && ev.target.closest('form[data-fav-form] button')) {
+      ev.preventDefault();
+    }
+  }, true);
+
+  document.addEventListener('submit', function(ev) {
+    var form = ev.target.closest('form[data-fav-form]');
+    if (!form) return;
+    ev.preventDefault();
+    var btn = form.querySelector('button[type=submit]');
+    if (!btn) return;
+    var iconOn  = btn.querySelector('[data-fav-on]');
+    var iconOff = btn.querySelector('[data-fav-off]');
+    var fd = new FormData(form);
+    btn.disabled = true;
+    // Preserva scroll (alguns browsers movem viewport ao focar o botão).
+    var sx = window.scrollX, sy = window.scrollY;
+    // Atenção: usar getAttribute('action') porque um input name="action"
+    // dentro do form sombrearia HTMLFormElement.action e devolveria o nó.
+    var url = form.getAttribute('action');
+    fetch(url, {
+      method: 'POST',
+      body: fd,
+      headers: {'X-Requested-With': 'fetch'},
+      credentials: 'same-origin',
+    }).then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
+      .then(function(data) {
+        var on = data && data.state === 'on';
+        if (iconOn)  iconOn.classList.toggle('hidden', !on);
+        if (iconOff) iconOff.classList.toggle('hidden', on);
+        btn.classList.toggle('text-amber-500', on);
+        btn.classList.toggle('text-slate-300', !on);
+        var label = on ? (btn.dataset.labelOn || 'Remover dos favoritos')
+                       : (btn.dataset.labelOff || 'Marcar como favorito');
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('title', label);
+      })
+      .catch(function() { /* falha silenciosa: usuário pode tentar de novo */ })
+      .finally(function() {
+        btn.disabled = false;
+        if (window.scrollX !== sx || window.scrollY !== sy) {
+          window.scrollTo(sx, sy);
+        }
+      });
+  });
 </script>
 </body>
 </html>

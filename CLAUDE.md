@@ -91,7 +91,7 @@ Top N final = MIN(target_articles, total_incluídos) ranqueado por quality_score
 
 Backend é escolhido em runtime por `DATABASE_URL`:
 - **Postgres** (default em prod/dev): schema vivo em [src/vicky/schema_pg.sql](src/vicky/schema_pg.sql), aplicado via `make pg-init`.
-- **SQLite** (fallback): `~/.local/share/vicky/vicky.db`, schema declarativo em [storage.py](src/vicky/storage.py) + migrations v1→v9 aplicadas no `connect()`.
+- **SQLite** (fallback): `~/.local/share/vicky/vicky.db`, schema declarativo em [storage.py](src/vicky/storage.py) + migrations v1→v11 aplicadas no `connect()`.
 
 O adapter [src/vicky/db.py](src/vicky/db.py) traduz dialetos no momento do `execute` (`?` → `%s`, `datetime('now')`, `strftime('%s', X)`, `julianday(X)`, `unaccent(...)`) — código de negócio escreve SQL "estilo SQLite" e funciona nos dois.
 
@@ -180,6 +180,12 @@ JDBC:    jdbc:postgresql://localhost:5433/vicky   (DataGrip/IntelliJ)
 | `make pg-drop` | TRUNCATE em todas as tabelas (preserva schema) |
 | `make pg-reset` | **Apaga volume** e sobe banco zerado (pede confirmação) |
 | `make pg-fresh` | `pg-reset` + `pg-init` + `seed` (workflow "do zero") |
+| `make check-schema` | Verifica drift entre migrations SQLite e `ALTER IF NOT EXISTS` em `schema_pg.sql` ([scripts/check_schema_drift.py](scripts/check_schema_drift.py)) |
+| `make deploy` | SSH na VPS: `git pull` + `docker compose up -d --build` + `init_pg_schema()` (idempotente) |
+| `make prod-pg-init` | Aplica `schema_pg.sql` em produção, fora do deploy |
+| `make prod-logs` | Tail dos logs do `vicky-web` em produção |
+| `make prod-status` | Status dos containers de produção |
+| `make prod-restart` | Reinicia `vicky-web` em produção (sem rebuild) |
 
 ### Roteiro pra um dev novo (clone fresco)
 
@@ -265,6 +271,9 @@ src/vicky/
 │                     #   schedule_pipeline() roda em loop principal via run_coroutine_threadsafe
 ├── llm.py            # Cliente OpenRouter (OpenAI SDK compatible). Aceita criteria opcional
 │                     #   pra cada chamada — projetos diferentes têm critérios diferentes!
+├── openrouter_cost.py # Reconciliação de custo real via GET /api/v1/generation?id=<id>
+│                     #   (total_cost em USD por chamada, com retries)
+├── pricing.py        # Tabela estática de preços por modelo (fallback quando custo real falha)
 ├── prompts.py        # System prompts do analyzer e double-check (recebem critérios)
 ├── scraper.py        # Legacy Rayyan scraper (Playwright). Mantido pra projetos importados
 ├── report.py         # Gera relatório markdown a partir do banco
@@ -284,7 +293,9 @@ src/vicky/
     └── templates/
         ├── base.html               # HTML root: Tailwind via CDN + Alpine.js + Inter
         ├── app_layout.html         # Layout autenticado: sidebar + header + main + footer
+        ├── landing.html            # Landing page pública (rota `/`)
         ├── login.html              # Tela de login isolada
+        ├── signup.html             # Cadastro público (rota `/signup`)
         ├── dashboard.html          # Workspace overview (lista de projetos)
         ├── projects/
         │   ├── list.html           # Cards de projetos
@@ -293,6 +304,9 @@ src/vicky/
         ├── records/
         │   ├── list.html           # Tabela com filtros, chips, busca tolerante
         │   └── detail.html         # Detalhe do artigo + override + score breakdown
+        ├── api_usage/
+        │   ├── list.html           # Histórico de chamadas LLM com custo (rota /configuracoes/uso-api)
+        │   └── detail.html         # Detalhe de uma chamada (tokens, custo, generation_id)
         ├── users/list.html         # Admin: gestão de usuários
         ├── workspace_settings.html # Configs do workspace do user logado
         ├── settings.html           # Configs globais (read-only)
@@ -389,20 +403,27 @@ FastAPI rejeita string vazia como `int` com 422 (`int_parsing` error). Quando o 
 ## Rotas (mapa rápido)
 
 **GET (telas):**
-- `/login`, `/logout`
+- `/` — landing pública
+- `/login`, `/signup`, `/logout`
 - `/dashboard` — overview do workspace
-- `/projetos`, `/projetos/novo`, `/projetos/{id}`, `/projetos/{id}/registros`, `/projetos/{id}/registros/{rid}`
+- `/projetos`, `/projetos/novo`, `/projetos/{id}`, `/projetos/{id}/registros`, `/projetos/{id}/registros/{source}/{external_id}`
 - `/projetos/{id}/status` — JSON de polling do pipeline (3s)
+- `/projetos/{id}/search-strings.json` — JSON com as strings de busca usadas
 - `/projetos/{id}/export` — download do relatório PDF (gerado por `pdf_report.py`)
 - `/usuarios` (admin), `/workspace` (settings do workspace logado), `/configuracoes` (read-only global)
+- `/configuracoes/uso-api`, `/configuracoes/uso-api/{usage_id}` — histórico/detalhe de chamadas LLM com custo real
 
 **POST (ações):**
-- `/projetos/novo` — cria projeto (com flag opcional pra iniciar pipeline)
+- `/signup` — cria conta nova
+- `/projetos` — cria projeto (com flag opcional pra iniciar pipeline)
 - `/projetos/{id}/iniciar` — dispara `schedule_pipeline()`
+- `/projetos/{id}/parar` — interrompe pipeline em execução
 - `/projetos/{id}/atualizar` — edita metadados (incluindo `target_articles`)
 - `/projetos/{id}/criterios` — re-grava `criteria_md` editado manualmente
 - `/projetos/{id}/excluir` — apaga projeto e dados associados
-- `/projetos/{id}/registros/{rid}` — grava override manual (`user_decisions`)
+- `/projetos/{id}/registros/{source}/{external_id}/decisao` — grava override manual (`user_decisions`)
+- `/usuarios` (criar) · `/usuarios/{uid}/atualizar` · `/usuarios/{uid}/creditos` · `/usuarios/{uid}/excluir`
+- `/workspace` — atualiza settings do workspace logado
 
 Toda rota com `{project_id}` passa por `get_project_for_workspace()` antes de tocar dados. Ver seção "Multitenancy".
 
@@ -554,6 +575,17 @@ Pipelines novos (de projetos) rodam **automaticamente** quando você cria projet
 - [docs/criterios-inclusao-exclusao.md](docs/criterios-inclusao-exclusao.md) — exemplo de critérios PICO no formato esperado pelo discovery agent
 - [docs/discovery-pipeline.md](docs/discovery-pipeline.md) — spec arquitetural completa do pipeline
 - [resultados/](resultados/) — outputs de pipelines anteriores (CSV, JSON, MD)
+- [LP Vicky/](LP%20Vicky/) — landing page estática standalone (HTML/CSS/JS sem build) — referência de marca; **não é** a `landing.html` servida em `/`
+
+---
+
+## Deploy em produção
+
+- [Dockerfile.prod](Dockerfile.prod) — imagem Python 3.12 + uv para `vicky-web`
+- [compose.prod.yml](compose.prod.yml) — stack de produção (`vicky-web` + Postgres + reverse proxy)
+- VPS default: `synaptha@72.61.128.48:~/Vicky` (override via `VPS_USER` / `VPS_HOST` / `VPS_PATH` no `make`)
+- Workflow: `make deploy` faz `git pull` + rebuild + `init_pg_schema()` (idempotente). Mudanças aditivas de schema refletem em prod automaticamente. Destrutivas: `make prod-pg-init` + SQL manual com autorização.
+- `.env.prod` fica na VPS (não commitado). Nunca incluir credenciais de prod no repo.
 
 ---
 

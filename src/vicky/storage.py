@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS projects (
     review_type      TEXT NOT NULL DEFAULT 'systematic_review',  -- systematic_review | narrative_review
     rigidity_mode    TEXT NOT NULL DEFAULT 'padrao',  -- padrao (funil 4 estágios) | elite (qualidade obrigatória)
     topic_maturity   TEXT,                  -- high | moderate | emerging — adapta janela e pesos
+    pending_full_pipeline INTEGER NOT NULL DEFAULT 0,  -- 1 = usuário pediu pipeline completo durante o preview;
+                                                       -- ao terminar discovery, dispara run_full_pipeline automaticamente
     criteria_md      TEXT,
     search_strings   TEXT,                  -- JSON {pubmed, scielo, scholar}
     sources          TEXT DEFAULT 'pubmed,scielo,scholar',
@@ -202,6 +204,31 @@ CREATE INDEX IF NOT EXISTS idx_llm_usage_workspace ON llm_usage(workspace_id, cr
 CREATE INDEX IF NOT EXISTS idx_llm_usage_project   ON llm_usage(project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_usage_user      ON llm_usage(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_usage_step      ON llm_usage(pipeline_step);
+
+-- Favoritos: artigos marcados como favoritos por um usuário dentro de um projeto.
+-- Escopo: 1 row por (user, project, source, external_id).
+CREATE TABLE IF NOT EXISTS user_article_favorites (
+    user_id      INTEGER NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+    project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    source       TEXT    NOT NULL,
+    external_id  TEXT    NOT NULL,
+    note         TEXT,
+    created_at   TEXT    DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, project_id, source, external_id),
+    FOREIGN KEY (project_id, source, external_id)
+        REFERENCES articles(project_id, source, external_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_user    ON user_article_favorites(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_project ON user_article_favorites(user_id, project_id);
+
+-- Projetos favoritos do usuário (escopo: workspace).
+CREATE TABLE IF NOT EXISTS user_project_favorites (
+    user_id     INTEGER NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    created_at  TEXT    DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, project_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_project_favs_user ON user_project_favorites(user_id, created_at DESC);
 """
 
 
@@ -587,6 +614,77 @@ def _migrate_v10_to_v11_rigidity_mode(conn: sqlite3.Connection) -> bool:
     return changed
 
 
+def _migrate_v12_to_v13_pending_full_pipeline(conn: sqlite3.Connection) -> bool:
+    """v12 → v13: flag para auto-disparar pipeline após preview.
+
+    Adiciona `pending_full_pipeline INTEGER NOT NULL DEFAULT 0` em `projects`.
+    Setado pelo botão "Iniciar pipeline" quando o status ainda é 'discovering'
+    (preview rodando). Ao terminar a geração de critérios, `run_discovery_only`
+    consome a flag e dispara `run_full_pipeline` automaticamente, sem regerar
+    critérios e sem cobrar crédito de novo (já foi cobrado quando a flag foi
+    setada).
+    """
+    if not _table_exists(conn, "projects"):
+        return False
+    if _table_has_column(conn, "projects", "pending_full_pipeline"):
+        return False
+    conn.execute(
+        "ALTER TABLE projects ADD COLUMN pending_full_pipeline INTEGER NOT NULL DEFAULT 0"
+    )
+    print("✓ v12→v13: pending_full_pipeline em projects")
+    return True
+
+
+def _migrate_v13_to_v14_project_favorites(conn: sqlite3.Connection) -> bool:
+    """v13 → v14: tabela user_project_favorites."""
+    if _table_exists(conn, "user_project_favorites"):
+        return False
+    conn.execute(
+        """
+        CREATE TABLE user_project_favorites (
+            user_id     INTEGER NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+            project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            created_at  TEXT    DEFAULT (datetime('now')),
+            PRIMARY KEY (user_id, project_id)
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_user_project_favs_user ON user_project_favorites(user_id, created_at DESC)")
+    print("✓ v13→v14: user_project_favorites criado")
+    return True
+
+
+def _migrate_v11_to_v12_favorites(conn: sqlite3.Connection) -> bool:
+    """v11 → v12: tabela user_article_favorites.
+
+    Permite que cada usuário marque artigos como favoritos dentro dos projetos
+    do seu workspace. A tabela já é criada idempotentemente pelo SCHEMA — esta
+    migration só serve para dar nome à versão e aproveitar o run_migrations.
+    Backfill: zero (tabela nasce vazia).
+    """
+    if _table_exists(conn, "user_article_favorites"):
+        return False
+    conn.execute(
+        """
+        CREATE TABLE user_article_favorites (
+            user_id      INTEGER NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+            project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            source       TEXT    NOT NULL,
+            external_id  TEXT    NOT NULL,
+            note         TEXT,
+            created_at   TEXT    DEFAULT (datetime('now')),
+            PRIMARY KEY (user_id, project_id, source, external_id),
+            FOREIGN KEY (project_id, source, external_id)
+                REFERENCES articles(project_id, source, external_id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_user_favorites_user ON user_article_favorites(user_id, created_at DESC)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_user_favorites_project ON user_article_favorites(user_id, project_id)")
+    print("✓ v11→v12: user_article_favorites criado")
+    return True
+
+
 def run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_v1_to_v2_multitenancy(conn)
     conn.commit()
@@ -607,6 +705,12 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_v9_to_v10_substring_strategy(conn)
     conn.commit()
     _migrate_v10_to_v11_rigidity_mode(conn)
+    conn.commit()
+    _migrate_v11_to_v12_favorites(conn)
+    conn.commit()
+    _migrate_v12_to_v13_pending_full_pipeline(conn)
+    conn.commit()
+    _migrate_v13_to_v14_project_favorites(conn)
     conn.commit()
 
 
@@ -849,6 +953,63 @@ def clear_user_decision(conn: sqlite3.Connection, project_id: int,
         "DELETE FROM user_decisions WHERE project_id=? AND source=? AND external_id=?",
         (project_id, source, external_id),
     )
+
+
+# ─── Favoritos (por usuário) ───────────────────────────────────────────────
+
+
+def add_favorite(conn: sqlite3.Connection, *, user_id: int, project_id: int,
+                 source: str, external_id: str, note: str | None = None) -> None:
+    """Marca um artigo como favorito do usuário (idempotente)."""
+    conn.execute(
+        """
+        INSERT INTO user_article_favorites (user_id, project_id, source, external_id, note)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT (user_id, project_id, source, external_id) DO UPDATE SET note=excluded.note
+        """,
+        (user_id, project_id, source, external_id, note),
+    )
+
+
+def remove_favorite(conn: sqlite3.Connection, *, user_id: int, project_id: int,
+                    source: str, external_id: str) -> None:
+    conn.execute(
+        "DELETE FROM user_article_favorites WHERE user_id=? AND project_id=? AND source=? AND external_id=?",
+        (user_id, project_id, source, external_id),
+    )
+
+
+def is_favorite(conn: sqlite3.Connection, *, user_id: int, project_id: int,
+                source: str, external_id: str) -> bool:
+    return bool(conn.execute(
+        "SELECT 1 FROM user_article_favorites WHERE user_id=? AND project_id=? AND source=? AND external_id=?",
+        (user_id, project_id, source, external_id),
+    ).fetchone())
+
+
+def add_project_favorite(conn: sqlite3.Connection, *, user_id: int, project_id: int) -> None:
+    conn.execute(
+        """
+        INSERT INTO user_project_favorites (user_id, project_id)
+        VALUES (?, ?)
+        ON CONFLICT (user_id, project_id) DO NOTHING
+        """,
+        (user_id, project_id),
+    )
+
+
+def remove_project_favorite(conn: sqlite3.Connection, *, user_id: int, project_id: int) -> None:
+    conn.execute(
+        "DELETE FROM user_project_favorites WHERE user_id=? AND project_id=?",
+        (user_id, project_id),
+    )
+
+
+def is_project_favorite(conn: sqlite3.Connection, *, user_id: int, project_id: int) -> bool:
+    return bool(conn.execute(
+        "SELECT 1 FROM user_project_favorites WHERE user_id=? AND project_id=?",
+        (user_id, project_id),
+    ).fetchone())
 
 
 def articles_without_analysis(conn: sqlite3.Connection, project_id: int) -> list[Article]:

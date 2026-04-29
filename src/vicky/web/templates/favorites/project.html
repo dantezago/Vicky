@@ -1,0 +1,71 @@
+{% extends "app_layout.html" %}
+{% from "components/status_badge.html" import decision_badge, score_pill %}
+{% from "components/link_button.html" import link_button %}
+{% from "components/project_status.html" import source_badge %}
+{% block title %}Favoritos · {{ p.topic|truncate(40) }} · Vicky{% endblock %}
+{% block page_eyebrow %}<div class="vk-eyebrow muted mb-1.5"><a href="/favoritos" class="hover:text-brand-600 transition">← Favoritos</a> · Projeto #{{ p.id }}</div>{% endblock %}
+{% block page_title %}⭐ Favoritos do projeto{% endblock %}
+{% block page_subtitle %}<p class="text-xs text-slate-500 mt-1 line-clamp-1 max-w-3xl">{{ p.topic }}</p>{% endblock %}
+
+{% block content %}
+
+<div class="mb-4 flex items-center gap-2 flex-wrap">
+  <a href="/favoritos" class="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 font-medium">
+    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+    Voltar para Favoritos
+  </a>
+  <span class="text-slate-300">·</span>
+  <a href="/projetos/{{ p.id }}" class="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700 font-medium">
+    Ver projeto completo
+    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+  </a>
+</div>
+
+<div class="bg-white rounded-xl border border-slate-200/70 shadow-card overflow-hidden">
+  {% if favorites %}
+  <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+    <h3 class="text-sm font-semibold text-slate-900">⭐ {{ favorites|length }} {% if favorites|length == 1 %}artigo favorito{% else %}artigos favoritos{% endif %}</h3>
+  </div>
+  <div class="divide-y divide-slate-100">
+    {% for r in favorites %}
+    <div class="flex items-start gap-3 px-5 py-4">
+      <div class="shrink-0 mt-0.5">{{ score_pill(r.quality_score) }}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap mb-1">
+          {{ source_badge(r.source) }}
+          {% if r.year %}<span class="text-[11px] text-slate-500 tabular-nums">{{ r.year }}</span>{% endif %}
+          {{ decision_badge(r.decision, in_top_n=r.in_top_n) }}
+        </div>
+        <a href="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}"
+           class="block text-sm font-medium text-slate-900 hover:text-brand-700 line-clamp-2 break-words">{{ r.title }}</a>
+        {% if r.authors %}<div class="text-xs text-slate-500 mt-0.5 line-clamp-1 break-words">{{ r.authors }}</div>{% endif %}
+        {% if r.journal %}<div class="text-xs text-slate-400 mt-0.5 italic line-clamp-1 break-words">{{ r.journal }}</div>{% endif %}
+        <div class="mt-2 flex items-center gap-2 flex-wrap">
+          {{ link_button(r.external_url, "Abrir", small=true) }}
+          <a href="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}"
+             class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition font-medium">Detalhes</a>
+          <form action="/projetos/{{ p.id }}/registros/{{ r.source }}/{{ r.external_id }}/favoritar"
+                method="post" class="inline">
+            <input type="hidden" name="action" value="remove">
+            <input type="hidden" name="next" value="/favoritos/{{ p.id }}">
+            <button type="submit"
+                    class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-700 transition font-medium"
+                    title="Remover dos favoritos">
+              ⭐ Remover
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center px-6 py-12">
+    <div class="text-3xl">⭐</div>
+    <p class="text-sm text-slate-600 mt-3">Você ainda não marcou nenhum artigo deste projeto como favorito.</p>
+    <a href="/projetos/{{ p.id }}/registros" class="inline-block mt-4 text-sm text-brand-600 hover:text-brand-700 font-medium">Ver todos os artigos do projeto →</a>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

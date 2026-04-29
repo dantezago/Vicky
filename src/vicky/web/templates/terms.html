@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Termos de Uso · Vicky</title>
+<meta name="description" content="Termos de Uso da plataforma Vicky de triagem assistida por IA para revisões científicas." />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23ec4899'/%3E%3Cstop offset='100%25' stop-color='%23be185d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Bricolage Grotesque, sans-serif' font-size='38' font-weight='800' fill='white'%3EV%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="{{ url_for('static', path='/landing/styles.css') }}" />
+<style>
+  .terms-wrap { max-width: 780px; margin: 0 auto; padding: 56px 20px 80px; color: #0f172a; line-height: 1.7; }
+  .terms-wrap h1 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 38px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
+  .terms-wrap .updated { font-family: 'DM Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: #64748b; margin-bottom: 32px; }
+  .terms-wrap h2 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; font-weight: 700; margin-top: 36px; margin-bottom: 10px; color: #0f172a; }
+  .terms-wrap p { margin: 12px 0; color: #1e293b; }
+  .terms-wrap ul { margin: 8px 0 16px 22px; }
+  .terms-wrap li { margin-bottom: 6px; }
+  .terms-wrap strong { color: #be185d; }
+  .terms-back { display: inline-flex; align-items: center; gap: 6px; color: #be185d; font-weight: 600; text-decoration: none; font-size: 14px; margin-bottom: 24px; }
+  .terms-back:hover { color: #831843; }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Principal">
+  <div class="container nav-inner">
+    <a class="nav-brand" href="/" aria-label="Vicky · início">
+      <span class="nav-logo" aria-hidden="true">V</span>
+      <span class="nav-wordmark">Vicky</span>
+    </a>
+    <div class="nav-cta">
+      <a class="btn btn-ghost-pink" href="/login">Entrar</a>
+      <a class="btn btn-primary" href="/signup">Começar grátis</a>
+    </div>
+  </div>
+</nav>
+
+<main class="terms-wrap">
+  <a href="/" class="terms-back">← Voltar à página inicial</a>
+  <h1>Termos de Uso</h1>
+  <div class="updated">Última atualização: 29 de abril de 2026</div>
+
+  <p>Bem-vindo à <strong>Vicky</strong>. Estes Termos de Uso regulam o acesso e a utilização da plataforma Vicky, uma ferramenta de triagem assistida por inteligência artificial voltada para revisões de literatura científica. Ao criar uma conta ou utilizar qualquer funcionalidade da plataforma, você declara que leu, compreendeu e concorda com estes Termos.</p>
+
+  <h2>1. Sobre a Vicky</h2>
+  <p>A Vicky é uma plataforma que automatiza etapas operacionais da revisão de literatura científica: gera critérios PICO, busca artigos em bases científicas (PubMed, SciELO e Google Acadêmico), aplica triagem com modelos de linguagem em duas passadas independentes e entrega um Top N ranqueado por Quality Score.</p>
+  <p>A Vicky <strong>não substitui</strong> a análise crítica do pesquisador. As decisões finais sobre inclusão/exclusão de artigos, leitura completa, análise metodológica e escrita do trabalho continuam sendo responsabilidade do usuário e do orientador da pesquisa.</p>
+
+  <h2>2. Cadastro e conta</h2>
+  <ul>
+    <li>O cadastro é gratuito e exige nome, e-mail válido e senha.</li>
+    <li>O usuário é responsável por manter a confidencialidade da senha e por todas as atividades realizadas em sua conta.</li>
+    <li>Você deve fornecer informações verdadeiras e atualizadas. Cadastros com dados falsos podem ser cancelados.</li>
+    <li>É proibido compartilhar a conta com terceiros ou criar múltiplas contas para burlar limites de uso.</li>
+  </ul>
+
+  <h2>3. Créditos e cobrança</h2>
+  <ul>
+    <li>O uso da plataforma é organizado por <strong>créditos</strong>. Cada execução completa de pipeline (busca + análise + double-check) consome 1 crédito.</li>
+    <li>A pré-visualização de critérios PICO (geração apenas dos critérios, sem busca completa) é <strong>gratuita</strong> e não consome créditos.</li>
+    <li>Créditos não são reembolsáveis após o consumo, salvo em caso de falha técnica comprovada da plataforma.</li>
+    <li>Saldos de crédito não expiram, mas podem ser revistos em caso de inatividade prolongada da conta.</li>
+  </ul>
+
+  <h2>4. Uso permitido</h2>
+  <p>Você pode usar a Vicky para:</p>
+  <ul>
+    <li>Pesquisas acadêmicas, iniciação científica, TCC, monografias, artigos de revisão, dissertações e teses.</li>
+    <li>Triagem de literatura para fins de educação, pesquisa científica e orientação acadêmica.</li>
+    <li>Exportação dos resultados (PDF, XLSX, CSV, JSON) para anexar a trabalhos acadêmicos.</li>
+  </ul>
+
+  <h2>5. Uso proibido</h2>
+  <p>É vedado utilizar a Vicky para:</p>
+  <ul>
+    <li>Atividades ilegais, fraudulentas ou que violem direitos autorais.</li>
+    <li>Fazer engenharia reversa, scraping abusivo ou tentativa de acesso não autorizado a dados de terceiros.</li>
+    <li>Sobrecarregar intencionalmente a infraestrutura da plataforma.</li>
+    <li>Atribuir autoria de textos gerados pela IA sem a devida revisão e supervisão acadêmica.</li>
+  </ul>
+
+  <h2>6. Propriedade intelectual</h2>
+  <p>O código, marca, identidade visual e modelos de prompts da Vicky são de propriedade exclusiva da plataforma. Os dados de cada projeto (tema, critérios PICO gerados, artigos coletados, análises e relatórios exportados) pertencem ao usuário que os criou.</p>
+  <p>Os artigos científicos retornados pela busca pertencem aos seus respectivos autores e editoras. A Vicky apenas indexa metadados públicos disponibilizados por PubMed, SciELO e Google Scholar.</p>
+
+  <h2>7. Privacidade e dados</h2>
+  <ul>
+    <li>A Vicky coleta apenas as informações necessárias para o funcionamento da plataforma: e-mail, nome, senha (armazenada com hash) e dados dos projetos criados.</li>
+    <li>Não vendemos nem compartilhamos dados pessoais com terceiros para fins de marketing.</li>
+    <li>Chamadas para modelos de linguagem (OpenRouter/OpenAI/Anthropic etc.) podem incluir trechos de resumos de artigos científicos, mas nunca dados pessoais identificáveis do usuário.</li>
+    <li>O usuário pode solicitar a exclusão da conta e dos seus dados a qualquer momento.</li>
+  </ul>
+
+  <h2>8. Limitações e isenção de responsabilidade</h2>
+  <p>A Vicky é fornecida "como está". Apesar de todo o esforço para garantir a qualidade da triagem (critérios PICO transparentes, duas passadas independentes, Quality Score auditável), o usuário compreende que:</p>
+  <ul>
+    <li>Modelos de linguagem podem cometer erros, omitir nuances ou classificar artigos de forma diferente do que um especialista humano faria.</li>
+    <li>Bases de dados externas (PubMed, SciELO, Google Scholar) podem estar temporariamente indisponíveis ou retornar resultados parciais.</li>
+    <li>A Vicky <strong>não se responsabiliza</strong> por decisões acadêmicas, clínicas ou de pesquisa tomadas com base exclusivamente nos resultados da plataforma. A revisão crítica humana é indispensável.</li>
+  </ul>
+
+  <h2>9. Disponibilidade do serviço</h2>
+  <p>Buscamos manter a plataforma disponível 24/7, mas podem ocorrer interrupções para manutenção, atualizações ou por motivos alheios à nossa vontade. Não há garantia formal de SLA.</p>
+
+  <h2>10. Alterações destes Termos</h2>
+  <p>Podemos atualizar estes Termos a qualquer momento. Mudanças relevantes serão comunicadas por e-mail ou via aviso na plataforma. O uso continuado após a notificação implica aceitação dos novos Termos.</p>
+
+  <h2>11. Foro e legislação aplicável</h2>
+  <p>Estes Termos são regidos pelas leis da República Federativa do Brasil. Eventuais controvérsias serão resolvidas no foro da comarca de domicílio do usuário, salvo disposição legal em contrário.</p>
+
+  <h2>12. Contato</h2>
+  <p>Dúvidas sobre estes Termos podem ser enviadas pelo e-mail de suporte indicado dentro da plataforma após o login.</p>
+
+  <p style="margin-top:40px; padding-top:24px; border-top:1px solid #e2e8f0; font-size:13px; color:#64748b;">Ao usar a Vicky você confirma que leu e concorda com estes Termos de Uso.</p>
+</main>
+
+<footer>
+  <div class="container">
+    <div class="footer-bottom">© 2026 Vicky · Feita no Brasil</div>
+  </div>
+</footer>
+
+</body>
+</html>
