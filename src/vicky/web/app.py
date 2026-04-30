@@ -643,13 +643,16 @@ def register_routes(app: FastAPI) -> None:
         project_id: int,
         user: Annotated[User, Depends(require_perm("view_records"))],
         ws: Annotated[Workspace, Depends(get_current_workspace)],
-        target_articles: Annotated[int, Form()] = 40,
     ):
-        """Permite o usuário ajustar a meta de artigos (Top N) depois."""
+        """Rota legada: target_articles é congelado depois da criação do
+        projeto. A UI não expõe mais formulário de edição; esta rota fica
+        como guarda de defesa em profundidade — qualquer POST direto é
+        rejeitado, independentemente do status."""
         p = get_project_for_workspace(project_id, ws)
-        target_articles = max(1, min(30, target_articles))
-        projects_module.update(p.id, target_articles=target_articles)
-        return RedirectResponse(f"/projetos/{p.id}?msg=Meta+atualizada", status_code=303)
+        return RedirectResponse(
+            f"/projetos/{p.id}?error=Meta+do+Top+%C3%A9+definida+na+cria%C3%A7%C3%A3o+do+projeto+e+n%C3%A3o+pode+ser+alterada+depois",
+            status_code=303,
+        )
 
     @app.get("/projetos/{project_id}", response_class=HTMLResponse)
     def project_detail(

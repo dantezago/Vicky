@@ -795,36 +795,23 @@
   <!-- Sidebar: métricas (no mobile aparece ANTES do main) -->
   <aside class="order-1 lg:order-none space-y-5"
          x-data="window.__resumoInitial_{{ p.id }}">
-    <!-- Meta de artigos (editável) — número acompanha "Incluídos" do card de resumo, em tempo real, até o teto do Top -->
-    <div class="bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl shadow-card p-5 text-white" x-data="{editing: false}">
-      <div class="flex items-center justify-between">
-        <div>
-          <div class="text-xs uppercase tracking-wider opacity-90 font-semibold">🎯 Meta do Top</div>
-          <div class="mt-2 text-4xl font-bold tabular-nums" x-show="!editing">
-            <span x-text="Math.min(included, {{ p.target_articles }})">{{ [m.included, p.target_articles]|min }}</span><span class="text-2xl opacity-70">/{{ p.target_articles }}</span>
-          </div>
-          <div class="mt-1 text-xs opacity-90" x-show="!editing">
-            <span x-show="included >= {{ p.target_articles }}">✓ Top completo<span x-show="included > {{ p.target_articles }}"> · <span x-text="(included - {{ p.target_articles }})"></span> elegíveis fora do corte</span></span>
-            <span x-show="included > 0 && included < {{ p.target_articles }}">⚠ só <span x-text="included"></span> atendem aos critérios</span>
-            <span x-show="included == 0">Aguardando análise</span>
-          </div>
-        </div>
-        {% if user.can("view_records") %}
-        <button @click="editing = !editing" class="shrink-0 text-xs underline opacity-90 hover:opacity-100" x-show="!editing">Editar</button>
-        {% endif %}
+    {# Meta de artigos — read-only após o projeto ser criado.
+       O target_articles é definido APENAS no formulário de criação ("Novo
+       projeto"). Uma vez criado o projeto, o valor é congelado em todas as
+       hipóteses (draft, preview de critérios, pipeline rodando, concluído).
+       Motivo: edições acidentais (spinner do input number no mobile, setas
+       no desktop) decrementavam o valor; e mudar o target depois corrompe
+       invariantes do pipeline já executado. #}
+    <div class="bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl shadow-card p-5 text-white">
+      <div class="text-xs uppercase tracking-wider opacity-90 font-semibold">🎯 Meta do Top</div>
+      <div class="mt-2 text-4xl font-bold tabular-nums">
+        <span x-text="Math.min(included, {{ p.target_articles }})">{{ [m.included, p.target_articles]|min }}</span><span class="text-2xl opacity-70">/{{ p.target_articles }}</span>
       </div>
-
-      <!-- Form de edição -->
-      <form action="/projetos/{{ p.id }}/atualizar" method="post" x-show="editing" x-cloak class="mt-3 space-y-2">
-        <label class="block text-xs opacity-90">Quantos artigos no Top final? (1–30)</label>
-        <input type="number" name="target_articles" value="{{ p.target_articles }}" min="1" max="30"
-               class="w-full rounded-md border-0 text-slate-900 text-sm focus:ring-2 focus:ring-white">
-        <p class="text-[11px] opacity-90 leading-snug">Teto de 30 para preservar a triagem minuciosa em duas passadas. Qualidade acima de quantidade.</p>
-        <div class="flex gap-2">
-          <button type="submit" class="flex-1 rounded-md bg-white text-brand-700 text-sm font-medium py-1.5 hover:bg-brand-50">Salvar</button>
-          <button type="button" @click="editing = false" class="rounded-md bg-white/20 text-white text-sm py-1.5 px-3 hover:bg-white/30">Cancelar</button>
-        </div>
-      </form>
+      <div class="mt-1 text-xs opacity-90">
+        <span x-show="included >= {{ p.target_articles }}">✓ Top completo<span x-show="included > {{ p.target_articles }}"> · <span x-text="(included - {{ p.target_articles }})"></span> elegíveis fora do corte</span></span>
+        <span x-show="included > 0 && included < {{ p.target_articles }}">⚠ só <span x-text="included"></span> atendem aos critérios</span>
+        <span x-show="included == 0">Aguardando análise</span>
+      </div>
     </div>
 
     <script>
